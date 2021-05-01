@@ -4,9 +4,11 @@ use core::cell::Cell;
 
 mod ast;
 mod dep;
+mod grd;
 
 use crate::ast::parse;
-use crate::dep::{check, dep_graph, order, print_dep_graph};
+use crate::grd::grd;
+use crate::dep::{check, grd_seq, order};
 
 fn main() {
     let x = Cell::new(42);
@@ -18,8 +20,6 @@ fn main() {
     let mut prg = parse("p(1). b(X) :- not a(X), p(X). a(X) :- not b(X), p(X).").unwrap();
     assert!(check(prg.iter()));
     order(&mut prg.iter_mut());
-    let graph = dep_graph(prg.iter());
-    print_dep_graph(&graph);
-
-    // TODO: the graph should be printed!!!
+    let seq = grd_seq(prg.iter());
+    grd(&seq);
 }

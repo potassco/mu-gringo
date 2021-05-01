@@ -93,7 +93,7 @@ pub fn order<'a, I: Iterator<Item = &'a mut Rule>>(prg: I) {
     }
 }
 
-pub fn dep_graph<'a, I: Iterator<Item = &'a Rule>>(prg: I) -> Vec<Vec<Vec<&'a Rule>>> {
+pub fn grd_seq<'a, I: Iterator<Item = &'a Rule>>(prg: I) -> Vec<Vec<Vec<&'a Rule>>> {
     let mut ret = vec!();
     for scc in _dep_graph(prg, false) {
         ret.push(vec!());
@@ -102,16 +102,4 @@ pub fn dep_graph<'a, I: Iterator<Item = &'a Rule>>(prg: I) -> Vec<Vec<Vec<&'a Ru
         }
     }
     return ret;
-}
-
-pub fn print_dep_graph<'a>(graph: &'a Vec<Vec<Vec<&'a Rule>>>) {
-    for scc in graph {
-        println!("Component");
-        for ref_scc in scc {
-            println!("  Refined Component");
-            for rule in ref_scc {
-                println!("    {}.\n", rule);
-            }
-        }
-    }
 }
