@@ -1,0 +1,17 @@
+[package]
+name = "ex02"
+version = "0.1.0"
+authors = ["Roland Kaminski <kaminski@cs.uni-potsdam.de>"]
+edition = "2018"
+build = "build.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+petgraph = "0.5.1"
+lalrpop-util = "0.19.5"
+regex = "1"
+
+[build-dependencies]
+petgraph = "0.5.1"
+lalrpop = "0.19.5"

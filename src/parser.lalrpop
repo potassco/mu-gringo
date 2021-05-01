@@ -1,0 +1,65 @@
+use std::str::FromStr;
+use crate::ast::{Term, Relation, AggregateFunction, AggregateElement, Aggregate, Atom, Literal, Rule, BodyLiteral};
+
+grammar;
+
+List<T, s>: Vec<T> = {
+    <mut v:(<T> s)*> <e:T?> => match e {
+        None => v,
+        Some(e) => {
+            v.push(e);
+            v
+        }
+    }
+}
+
+Num: i32 = <s:r"[0-9]+"> => i32::from_str(s).unwrap();
+Id: String = <s:r"[a-z][A-Za-z0-9_]*"> => String::from(s);
+Var: String = <s:r"[A-Z][A-Za-z0-9_]*"> => String::from(s);
+
+Term: Term = {
+    <n:Num> => Term::Number(n),
+    <n:Var> => Term::Variable(n),
+    <n:Id> => Term::Function(n, vec!()),
+    <n:Id> "(" <args: List<Term, ",">> ")" => Term::Function(n, args),
+}
+
+Atom: Atom = {
+    <name:Id> => Atom{name: name, args: vec!()},
+    <name:Id> "(" <args: List<Term, ",">> ")" => Atom{name: name, args: args},
+}
+
+Relation: Relation = {
+    "<" => Relation::LessThan,
+    "<=" => Relation::LessEqual,
+    ">" => Relation::GreaterThan,
+    ">=" => Relation::GreaterEqual,
+}
+
+AggregateElement: AggregateElement = {
+    <t:List<Term, ",">> ":" <c:List<Atom, ",">> => AggregateElement{terms: t, condition: c},
+}
+
+Aggregate: Aggregate = {
+    "#count" "{" <e:List<AggregateElement, ";">> "}" <r:Relation> <g:Term> => Aggregate {fun: AggregateFunction::Count, elements: e, rel: r, guard: g},
+}
+
+Literal: Literal = {
+    <a:Term> <r:Relation> <b:Term> => Literal::Comparison{lhs: a, rel: r, rhs: b},
+    <a:Atom> => Literal::Literal{positive: true, atom: a},
+    "not" <a:Atom> => Literal::Literal{positive: false, atom: a},
+}
+
+BodyLiteral: BodyLiteral = {
+    <l:Literal> => BodyLiteral::Literal(l),
+    <a:Aggregate> => BodyLiteral::Aggregate(a),
+}
+
+Rule: Rule = {
+    <h:Atom> "." => Rule{head: h, body: vec!()},
+    <h:Atom> ":-" <b: List<BodyLiteral, ",">> "." => Rule{head: h, body: b},
+}
+
+pub Program: Vec<Rule> = {
+    <p:Rule*> => p,
+}
