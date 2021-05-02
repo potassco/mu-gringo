@@ -27,5 +27,7 @@ fn main() {
     assert!(dep::check(prg.iter()));
     dep::order(&mut prg.iter_mut());
     let seq = dep::grd_seq(prg.iter());
-    grd::ground(&seq);
+    for rule in grd::ground(&seq) {
+        println!("{}", rule);
+    }
 }

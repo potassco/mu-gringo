@@ -3,10 +3,6 @@ use petgraph::Graph;
 use petgraph::algo::kosaraju_scc;
 use std::collections::HashMap;
 
-fn get_sig(atom: &Atom) -> (&str, usize) {
-    return (&atom.name, atom.args.len());
-}
-
 fn is_positive(aggr: &Aggregate) -> bool {
     match (&aggr.fun, &aggr.rel) {
         (AggregateFunction::Count, Relation::GreaterThan) => true,
@@ -21,7 +17,7 @@ fn _dep_graph<'a, I: Iterator<Item = &'a Rule>>(prg: I, positive_only: bool) -> 
     let mut preds = HashMap::new();
     for rule in prg {
         let idx = graph.add_node(rule);
-        let sig = get_sig(&rule.head);
+        let sig = rule.head.sig();
         nodes.insert(rule, idx);
         preds.insert(sig, vec!());
         preds.get_mut(&sig).unwrap().push(rule);
@@ -30,8 +26,8 @@ fn _dep_graph<'a, I: Iterator<Item = &'a Rule>>(prg: I, positive_only: bool) -> 
         let rule = graph.node_weight(idx).unwrap();
         let hd = nodes.get(rule).unwrap();
         for blit in &rule.body {
-            let mut add = |atom| {
-                if let Some(dep) = preds.get(&get_sig(atom)) {
+            let mut add = |atom: &Atom| {
+                if let Some(dep) = preds.get(&atom.sig()) {
                     for bd in dep {
                         graph.add_edge(*hd, *nodes.get(bd).unwrap(), ());
                     }

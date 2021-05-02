@@ -3,19 +3,19 @@ use parser::ProgramParser;
 use std::fmt;
 use std::collections::{HashSet, HashMap};
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub enum Term {
     Number(i32),
     Variable(String),
     Function(String, Vec<Term>),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Substitution {
     pub mapping: HashMap<String, Term>,
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub struct Atom {
     pub name: String,
     pub args: Vec<Term>,
@@ -64,6 +64,12 @@ pub enum BodyLiteral {
 pub struct Rule {
     pub head: Atom,
     pub body: Vec<BodyLiteral>,
+}
+
+impl Atom {
+    pub fn sig(&self) -> (&str, usize) {
+        return (&self.name, self.args.len());
+    }
 }
 
 // Note: not sure how to do this right.
