@@ -1,22 +1,27 @@
 lalrpop_mod!(parser);
 use parser::ProgramParser;
 use std::fmt;
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 pub enum Term {
     Number(i32),
     Variable(String),
     Function(String, Vec<Term>),
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(Clone)]
+pub struct Substitution {
+    pub mapping: HashMap<String, Term>,
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 pub struct Atom {
     pub name: String,
     pub args: Vec<Term>,
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy)]
 pub enum Relation {
     LessThan,
     LessEqual,
@@ -30,7 +35,7 @@ pub enum Literal {
     Comparison{lhs: Term, rel: Relation, rhs: Term},
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy)]
 pub enum AggregateFunction {
     Count,
 }
@@ -61,21 +66,25 @@ pub struct Rule {
     pub body: Vec<BodyLiteral>,
 }
 
+// Note: not sure how to do this right.
 macro_rules! write_sep {
     ($f:expr, $seq:expr) => (
         write_sep!($f, $seq, ",")
     );
     ($f:expr, $seq:expr, $sep:expr) => (
-        let mut comma = false;
-        for term in $seq {
-            if comma {
-                write!($f, $sep)?;
+        || -> fmt::Result {
+            let mut comma = false;
+            for term in $seq {
+                if comma {
+                    write!($f, $sep)?;
+                }
+                else {
+                    comma = true;
+                }
+                write!($f, "{}", term)?;
             }
-            else {
-                comma = true;
-            }
-            write!($f, "{}", term)?;
-        }
+            Ok(())
+        }()
     )
 }
 
@@ -107,7 +116,7 @@ impl fmt::Display for Term {
                 write!(f, "{}", name)?;
                 if args.len() > 0 {
                     write!(f, "(")?;
-                    write_sep!(f, args);
+                    write_sep!(f, args)?;
                     write!(f, ")")?;
                 }
                 return Ok(());
@@ -121,7 +130,7 @@ impl fmt::Display for Atom {
         write!(f, "{}", self.name)?;
         if self.args.len() > 0 {
             write!(f, "(")?;
-            write_sep!(f, &self.args);
+            write_sep!(f, &self.args)?;
             write!(f, ")")?;
         }
         return Ok(());
@@ -147,9 +156,9 @@ impl fmt::Display for Literal {
 
 impl fmt::Display for AggregateElement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write_sep!(f, &self.terms);
+        write_sep!(f, &self.terms)?;
         write!(f, ":")?;
-        write_sep!(f, &self.condition);
+        write_sep!(f, &self.condition)?;
         return Ok(());
     }
 }
@@ -158,7 +167,7 @@ impl fmt::Display for Aggregate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.fun)?;
         write!(f, " {{ ")?;
-        write_sep!(f, &self.elements, "; ");
+        write_sep!(f, &self.elements, "; ")?;
         write!(f, " }} {} {}", self.rel, self.guard)?;
         return Ok(());
     }
@@ -178,7 +187,7 @@ impl fmt::Display for Rule {
         write!(f, "{}", self.head)?;
         if !self.body.is_empty() {
             write!(f, " :- ")?;
-            write_sep!(f, &self.body, ", ");
+            write_sep!(f, &self.body, ", ")?;
         }
         return Ok(());
     }
@@ -192,6 +201,8 @@ pub trait HasVariables {
         self.add_variables(&mut ret, bound);
         ret
     }
+
+    fn apply(&self, s: &Substitution) -> Self;
 }
 
 impl<T> HasVariables for Vec<T> where T: HasVariables {
@@ -200,6 +211,11 @@ impl<T> HasVariables for Vec<T> where T: HasVariables {
             x.add_variables(variables, bound);
         }
     }
+
+    fn apply(&self, s: &Substitution) -> Self {
+        self.iter().map(|x| x.apply(s)).collect()
+    }
+
 }
 
 impl HasVariables for Term {
@@ -210,11 +226,34 @@ impl HasVariables for Term {
             Term::Function(_, args) => args.add_variables(variables, bound),
         }
     }
+
+    fn apply(&self, s: &Substitution) -> Self {
+        match self {
+            Term::Variable(x) => {
+                if let Some(s) = s.mapping.get(x) {
+                    s.clone()
+                }
+                else {
+                    self.clone()
+                }
+            }
+            Term::Number(..) => {
+                self.clone()
+            }
+            Term::Function(name, args) => {
+                Term::Function(name.clone(), args.iter().map(|arg| { arg.apply(s) }).collect())
+            }
+        }
+    }
 }
 
 impl HasVariables for Atom {
     fn add_variables(&self, variables: &mut HashSet<String>, bound: bool) {
         self.args.add_variables(variables, bound);
+    }
+
+    fn apply(&self, s: &Substitution) -> Atom {
+        Atom{name: self.name.clone(), args: self.args.iter().map(|arg| { arg.apply(s) }).collect()}
     }
 }
 
@@ -231,6 +270,17 @@ impl HasVariables for Literal {
             _ => (),
         }
     }
+
+    fn apply(&self, s: &Substitution) -> Literal {
+        match self {
+            Literal::Literal{positive, atom} => {
+                Literal::Literal{atom: atom.apply(s), positive: *positive}
+            }
+            Literal::Comparison{lhs, rel, rhs} => {
+                Literal::Comparison{lhs: lhs.apply(s), rhs: rhs.apply(s), rel: rel.clone()}
+            }
+        }
+    }
 }
 
 impl HasVariables for AggregateElement {
@@ -240,6 +290,10 @@ impl HasVariables for AggregateElement {
         }
         self.condition.add_variables(variables, bound);
     }
+
+    fn apply(&self, s: &Substitution) -> Self {
+        AggregateElement{terms: self.terms.apply(s), condition: self.condition.apply(s)}
+    }
 }
 
 impl HasVariables for Aggregate {
@@ -247,6 +301,9 @@ impl HasVariables for Aggregate {
         if !bound {
             self.guard.add_variables(variables, bound);
         }
+    }
+    fn apply(&self, s: &Substitution) -> Self {
+        Aggregate{elements: self.elements.apply(s), guard: self.guard.apply(s), ..*self}
     }
 }
 
@@ -257,6 +314,12 @@ impl HasVariables for BodyLiteral {
             BodyLiteral::Aggregate(aggr) => aggr.add_variables(variables, bound),
         }
     }
+    fn apply(&self, s: &Substitution) -> Self {
+        match self {
+            BodyLiteral::Literal(lit) => BodyLiteral::Literal(lit.apply(s)),
+            BodyLiteral::Aggregate(aggr) => BodyLiteral::Aggregate(aggr.apply(s)),
+        }
+    }
 }
 
 impl HasVariables for Rule {
@@ -265,6 +328,9 @@ impl HasVariables for Rule {
             self.head.add_variables(variables, bound);
         }
         self.body.add_variables(variables, bound);
+    }
+    fn apply(&self, s: &Substitution) -> Self {
+        Rule{head: self.head.apply(s), body: self.body.apply(s)}
     }
 }
 
