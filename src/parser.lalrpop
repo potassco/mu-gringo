@@ -34,14 +34,21 @@ Relation: Relation = {
     "<=" => Relation::LessEqual,
     ">" => Relation::GreaterThan,
     ">=" => Relation::GreaterEqual,
+    "=" => Relation::Equal,
+    "!=" => Relation::Inequal,
 }
 
 AggregateElement: AggregateElement = {
     <t:List<Term, ",">> ":" <c:List<Atom, ",">> => AggregateElement{terms: t, condition: c},
 }
 
+AggregateFunction: AggregateFunction = {
+    "#count" => AggregateFunction::Count,
+    "#sum+" => AggregateFunction::SumP,
+}
+
 Aggregate: Aggregate = {
-    "#count" "{" <e:List<AggregateElement, ";">> "}" <r:Relation> <g:Term> => Aggregate {fun: AggregateFunction::Count, elements: e, rel: r, guard: g},
+    <f:AggregateFunction> "{" <e:List<AggregateElement, ";">> "}" <r:Relation> <g:Term> => Aggregate {fun: f, elements: e, rel: r, guard: g},
 }
 
 Literal: Literal = {

@@ -24,9 +24,11 @@ pub enum Relation {
     LessEqual,
     GreaterThan,
     GreaterEqual,
+    Equal,
+    Inequal,
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub enum Literal {
     Literal{positive: bool, atom: Atom},
     Comparison{lhs: Term, rel: Relation, rhs: Term},
@@ -35,15 +37,16 @@ pub enum Literal {
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
 pub enum AggregateFunction {
     Count,
+    SumP,
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub struct AggregateElement {
     pub terms: Vec<Term>,
     pub condition: Vec<Atom>,
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub struct Aggregate {
     pub fun: AggregateFunction,
     pub elements: Vec<AggregateElement>,
@@ -51,13 +54,13 @@ pub struct Aggregate {
     pub guard: Term,
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub enum BodyLiteral {
     Literal(Literal),
     Aggregate(Aggregate),
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub struct Rule {
     pub head: Atom,
     pub body: Vec<BodyLiteral>,
@@ -98,6 +101,8 @@ impl fmt::Display for Relation {
             Relation::LessEqual => write!(f, "<="),
             Relation::GreaterEqual => write!(f, ">="),
             Relation::GreaterThan => write!(f, ">"),
+            Relation::Equal => write!(f, "="),
+            Relation::Inequal => write!(f, "!="),
         }
     }
 }
@@ -106,6 +111,7 @@ impl fmt::Display for AggregateFunction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             AggregateFunction::Count => write!(f, "#count"),
+            AggregateFunction::SumP => write!(f, "#sum+"),
         }
     }
 }
@@ -204,13 +210,25 @@ pub trait ClassifyPosNeg {
 impl ClassifyPosNeg for Aggregate {
     fn has_positive(&self) -> bool {
         match (&self.fun, &self.rel) {
+            (_, Relation::Equal) => true,
+            (_, Relation::Inequal) => true,
             (AggregateFunction::Count, Relation::GreaterThan) => true,
+            (AggregateFunction::SumP, Relation::GreaterThan) => true,
             (AggregateFunction::Count, Relation::GreaterEqual) => true,
+            (AggregateFunction::SumP, Relation::GreaterEqual) => true,
             _ => false,
         }
     }
     fn has_negative(&self) -> bool {
-        !self.has_positive()
+        match (&self.fun, &self.rel) {
+            (_, Relation::Equal) => true,
+            (_, Relation::Inequal) => true,
+            (AggregateFunction::Count, Relation::LessThan) => true,
+            (AggregateFunction::SumP, Relation::LessThan) => true,
+            (AggregateFunction::Count, Relation::LessEqual) => true,
+            (AggregateFunction::SumP, Relation::LessEqual) => true,
+            _ => false,
+        }
     }
 }
 

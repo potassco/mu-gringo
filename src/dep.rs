@@ -11,8 +11,7 @@ fn _dep_graph<'a, I: Iterator<Item = &'a Rule>>(prg: I, positive_only: bool) -> 
         let idx = graph.add_node(rule);
         let sig = rule.head.sig();
         nodes.insert(rule, idx);
-        preds.insert(sig, vec!());
-        preds.get_mut(&sig).unwrap().push(rule);
+        preds.entry(sig).or_insert(vec!()).push(rule);
     }
     for idx in graph.node_indices() {
         let rule = graph.node_weight(idx).unwrap();
@@ -29,8 +28,8 @@ fn _dep_graph<'a, I: Iterator<Item = &'a Rule>>(prg: I, positive_only: bool) -> 
                 BodyLiteral::Literal(Literal::Literal{atom, positive}) if *positive || !positive_only => {
                     add(atom);
                 }
-                // Note: this deviates from the paper
-                BodyLiteral::Aggregate(aggr) => if aggr.has_positive() || !positive_only {
+                // Note: as in paper but could be refined
+                BodyLiteral::Aggregate(aggr) => {
                     for elem in &aggr.elements {
                         for atom in &elem.condition {
                             add(atom);
