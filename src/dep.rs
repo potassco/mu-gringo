@@ -3,14 +3,6 @@ use petgraph::Graph;
 use petgraph::algo::kosaraju_scc;
 use std::collections::HashMap;
 
-fn is_positive(aggr: &Aggregate) -> bool {
-    match (&aggr.fun, &aggr.rel) {
-        (AggregateFunction::Count, Relation::GreaterThan) => true,
-        (AggregateFunction::Count, Relation::GreaterEqual) => true,
-        _ => false,
-    }
-}
-
 fn _dep_graph<'a, I: Iterator<Item = &'a Rule>>(prg: I, positive_only: bool) -> Vec<Vec<&'a Rule>> {
     let mut graph = Graph::<&Rule, ()>::new();
     let mut nodes = HashMap::new();
@@ -37,7 +29,8 @@ fn _dep_graph<'a, I: Iterator<Item = &'a Rule>>(prg: I, positive_only: bool) -> 
                 BodyLiteral::Literal(Literal::Literal{atom, positive}) if *positive || !positive_only => {
                     add(atom);
                 }
-                BodyLiteral::Aggregate(aggr) => if is_positive(aggr) || !positive_only {
+                // Note: this deviates from the paper
+                BodyLiteral::Aggregate(aggr) => if aggr.has_positive() || !positive_only {
                     for elem in &aggr.elements {
                         for atom in &elem.condition {
                             add(atom);

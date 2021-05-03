@@ -10,10 +10,7 @@ pub enum Term {
     Function(String, Vec<Term>),
 }
 
-#[derive(Clone, Debug)]
-pub struct Substitution {
-    pub mapping: HashMap<String, Term>,
-}
+pub type Substitution = HashMap<String, Term>;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub struct Atom {
@@ -199,6 +196,54 @@ impl fmt::Display for Rule {
     }
 }
 
+pub trait ClassifyPosNeg {
+    fn has_positive(&self) -> bool;
+    fn has_negative(&self) -> bool;
+}
+
+impl ClassifyPosNeg for Aggregate {
+    fn has_positive(&self) -> bool {
+        match (&self.fun, &self.rel) {
+            (AggregateFunction::Count, Relation::GreaterThan) => true,
+            (AggregateFunction::Count, Relation::GreaterEqual) => true,
+            _ => false,
+        }
+    }
+    fn has_negative(&self) -> bool {
+        !self.has_positive()
+    }
+}
+
+impl ClassifyPosNeg for Literal {
+    fn has_positive(&self) -> bool {
+        match &self {
+            Literal::Literal{positive, ..} => *positive,
+            _ => false,
+        }
+    }
+    fn has_negative(&self) -> bool {
+        match &self {
+            Literal::Literal{positive, ..} => !*positive,
+            _ => false,
+        }
+    }
+}
+
+impl ClassifyPosNeg for BodyLiteral {
+    fn has_positive(&self) -> bool {
+        match &self {
+            BodyLiteral::Literal(lit) => lit.has_positive(),
+            BodyLiteral::Aggregate(aggr) => aggr.has_positive(),
+        }
+    }
+    fn has_negative(&self) -> bool {
+        match &self {
+            BodyLiteral::Literal(lit) => lit.has_negative(),
+            BodyLiteral::Aggregate(aggr) => aggr.has_negative(),
+        }
+    }
+}
+
 pub trait HasVariables {
     fn add_variables(&self, variables: &mut HashSet<String>, bound: bool);
 
@@ -236,7 +281,7 @@ impl HasVariables for Term {
     fn apply(&self, s: &Substitution) -> Self {
         match self {
             Term::Variable(x) => {
-                if let Some(s) = s.mapping.get(x) {
+                if let Some(s) = s.get(x) {
                     s.clone()
                 }
                 else {

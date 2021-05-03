@@ -12,11 +12,11 @@ impl GroundMatch for Term {
         match (self, g) {
             (Term::Number(x), Term::Number(y)) => x == y,
             (Term::Variable(x), _) => {
-                if let Some(t) = s.mapping.get(x) {
+                if let Some(t) = s.get(x) {
                     t == g
                 }
                 else {
-                    s.mapping.insert(x.clone(), g.clone());
+                    s.insert(x.clone(), g.clone());
                     true
                 }
             },
@@ -41,9 +41,9 @@ fn matches(s: &Substitution, dom_i: &Domain, dom_j: &Domain, dom_jp: &Domain, li
         Literal::Literal{positive: true, atom} => {
             let a = atom.apply(s);
             for g in dom_j {
-                let mut sp = Substitution{mapping: HashMap::new()};
+                let mut sp = Substitution::new();
                 if a.ground_match(&g, &mut sp) {
-                    sp.mapping.extend(s.mapping.iter().map(|(u, v)| (u.clone(), v.clone())));
+                    sp.extend(s.iter().map(|(u, v)| (u.clone(), v.clone())));
                     ret.push((sp, !dom_jp.contains(g)));
                 }
             }
@@ -94,7 +94,7 @@ fn ground_component(dom_i: &Domain, dom_j: &mut Domain, comp: &Vec<&Rule>) -> Ve
         let m = ret.len();
         for rule in comp {
             println!("%       {}", rule);
-            ret.append(&mut ground_rule(&Substitution{mapping: HashMap::new()}, dom_i, dom_j, &dom_jp, rule, 0, false));
+            ret.append(&mut ground_rule(&Substitution::new(), dom_i, dom_j, &dom_jp, rule, 0, false));
         }
         dom_jp = dom_j.clone();
         for rule in &ret[m..] {
@@ -112,8 +112,10 @@ fn keep_rule(rule: &Rule, open: &HashMap<(&str, usize), i32>) -> bool {
     rule.body.iter().all(|blit| match blit {
         BodyLiteral::Literal(Literal::Literal{positive: false, atom}) =>
             *open.get(&atom.sig()).unwrap_or(&0) == 0,
-        BodyLiteral::Aggregate(..) => 
-            panic!("implement me!!!"),
+        BodyLiteral::Aggregate(aggr) if aggr.has_negative() =>
+            aggr.elements.iter().all(
+                |elem| elem.condition.iter().all(
+                    |atom| *open.get(&atom.sig()).unwrap_or(&0) == 0)),
         _ =>
             true,
     })
