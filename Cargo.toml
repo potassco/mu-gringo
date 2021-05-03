@@ -8,10 +8,10 @@ build = "build.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-petgraph = "0.5.1"
-lalrpop-util = "0.19.5"
+petgraph = "0"
+lalrpop-util = "0"
 regex = "1"
 
 [build-dependencies]
-petgraph = "0.5.1"
-lalrpop = "0.19.5"
+petgraph = "0"
+lalrpop = "0"
