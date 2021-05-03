@@ -1,6 +1,6 @@
 [package]
-name = "ex02"
-version = "0.1.0"
+name = "grounding"
+version = "1.0.0"
 authors = ["Roland Kaminski <kaminski@cs.uni-potsdam.de>"]
 edition = "2018"
 build = "build.rs"
