@@ -40,7 +40,7 @@ pub enum AggregateFunction {
     SumP,
 }
 
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 pub struct AggregateElement {
     pub terms: Vec<Term>,
     pub condition: Vec<Atom>,

@@ -87,7 +87,8 @@ fn ground_rule(s: &Substitution, dom_i: &Domain, dom_j: &Domain, dom_jp: &Domain
         }
     }
     else if dom_jp.is_empty() || new {
-        ret.push(rule.apply(s))
+        ret.push(rule.apply(s));
+        println!("%           {}", ret.last().unwrap());
     }
     ret
 }
@@ -98,24 +99,28 @@ fn ground_component(dom_i: &Domain, dom_j: &mut Domain, comp: &Vec<&Rule>) -> Ve
     let (mut alphas, alpha, eta) = rewrite_component(comp);
 
     loop {
-        // ground eta/epsilon rules
-        let mut eta_g = Vec::new();
-        for rule in &eta {
-            println!("%       {}", rule);
-            eta_g.append(&mut ground_rule(&Substitution::new(), dom_i, dom_j, &dom_jp, &rule, 0, false));
+        if !eta.is_empty() {
+            // ground eta/epsilon rules
+            println!("%       Ground Element Rules");
+            let mut eta_g = Vec::new();
+            for rule in &eta {
+                println!("%         {}", rule);
+                eta_g.append(&mut ground_rule(&Substitution::new(), dom_i, dom_j, &dom_jp, &rule, 0, false));
+            }
+            // propagate aggregates
+            println!("%       Propagate Aggregates");
+            alphas.propagate(&eta_g, dom_j);
         }
-        // propagate aggregates
-        alphas.propagate(&eta_g, &mut dom_jp);
         // ground aggregate rules
+        println!("%       Ground Rules");
         let m = ret.len();
         for rule in &alpha {
-            println!("%       {}", rule);
+            println!("%         {}", rule);
             ret.append(&mut ground_rule(&Substitution::new(), dom_i, dom_j, &dom_jp, &rule, 0, false));
         }
         // next generation
         dom_jp = dom_j.clone();
         for rule in &ret[m..] {
-            println!("%         {}", rule);
             dom_j.insert(rule.head.clone());
         }
         if dom_jp.len() == dom_j.len() {
@@ -157,9 +162,9 @@ pub fn ground(seq: &Vec<Vec<Vec<&Rule>>>) -> Vec<Rule> {
             let ref_compp = ref_comp.iter().filter(|rule| is_stratified(rule, &open)).cloned().collect();
 
             println!("%   Ground Refined Component");
-            println!("%     Ground Facts");
+            println!("%     Ground Certain");
             f.extend(ground_component(&dom_j, &mut dom_i, &ref_compp));
-            println!("%     Ground Program");
+            println!("%     Ground Possible");
             g.extend(ground_component(&dom_i, &mut dom_j, &ref_comp));
 
             ref_comp.iter().for_each(|rule| *open.get_mut(&rule.head.sig()).unwrap() -= 1);
