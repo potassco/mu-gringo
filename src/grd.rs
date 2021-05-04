@@ -86,7 +86,7 @@ fn ground_rule(s: &Substitution, dom_i: &Domain, dom_j: &Domain, dom_jp: &Domain
             ret.extend(ground_rule(&sp, dom_i, dom_j, dom_jp, rule, i + 1, new || newp))
         }
     }
-    else if dom_jp.is_empty() || new {
+    else if new {
         ret.push(rule.apply(s));
         println!("%           {}", ret.last().unwrap());
     }
@@ -96,6 +96,7 @@ fn ground_rule(s: &Substitution, dom_i: &Domain, dom_j: &Domain, dom_jp: &Domain
 fn ground_component(dom_i: &Domain, dom_j: &mut Domain, comp: &Vec<&Rule>) -> Vec<Rule> {
     let mut ret = Vec::new();
     let mut dom_jp = Domain::new();
+    let mut new = true; // Note: this addresses a glitch in the paper
     let (mut alphas, alpha, eta) = rewrite_component(comp);
 
     loop {
@@ -105,7 +106,7 @@ fn ground_component(dom_i: &Domain, dom_j: &mut Domain, comp: &Vec<&Rule>) -> Ve
             let mut eta_g = Vec::new();
             for rule in &eta {
                 println!("%         {}", rule);
-                eta_g.append(&mut ground_rule(&Substitution::new(), dom_i, dom_j, &dom_jp, &rule, 0, false));
+                eta_g.append(&mut ground_rule(&Substitution::new(), dom_i, dom_j, &dom_jp, &rule, 0, new));
             }
             // propagate aggregates
             println!("%       Propagate Aggregates");
@@ -116,13 +117,14 @@ fn ground_component(dom_i: &Domain, dom_j: &mut Domain, comp: &Vec<&Rule>) -> Ve
         let m = ret.len();
         for rule in &alpha {
             println!("%         {}", rule);
-            ret.append(&mut ground_rule(&Substitution::new(), dom_i, dom_j, &dom_jp, &rule, 0, false));
+            ret.append(&mut ground_rule(&Substitution::new(), dom_i, dom_j, &dom_jp, &rule, 0, new));
         }
         // next generation
         dom_jp = dom_j.clone();
         for rule in &ret[m..] {
             dom_j.insert(rule.head.clone());
         }
+        new = false;
         if dom_jp.len() == dom_j.len() {
             break;
         }
