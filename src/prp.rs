@@ -182,9 +182,7 @@ impl PropagateState {
     ///
     /// Furthermore, remove aggregate atoms from the domain.
     pub fn assemble(&self, mut ret: Vec<Rule>, domain: &mut BTreeSet<Atom>) -> Vec<Rule> {
-        // Note: retain/drain is still unstable
-        let alpha: Vec<Atom> = domain.iter().filter(|atom| atom.name == "α").cloned().collect();
-        alpha.iter().for_each(|atom| { domain.remove(atom); });
+        self.grounding.iter().for_each(|(atom, _)| { domain.remove(atom); });
         for rule in &mut ret {
             for blit in &mut rule.body {
                 if let BodyLiteral::Literal(Literal::Literal{atom, positive}) = blit {
