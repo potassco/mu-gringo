@@ -1,7 +1,6 @@
 use crate::ast::*;
 use crate::prp::*;
 use std::collections::HashMap;
-use std::convert::TryInto;
 
 trait GroundMatch {
     fn ground_match(&self, g: &Self, s: &mut Substitution) -> bool;
@@ -93,98 +92,25 @@ fn ground_rule(s: &Substitution, dom_i: &Domain, dom_j: &Domain, dom_jp: &Domain
     ret
 }
 
-fn rewrite_aggregate(aggr: &Aggregate, body: Vec<BodyLiteral>, alpha: &mut Vec<(Aggregate, Vec<String>)>, eta: &mut Vec<Rule>) -> BodyLiteral {
-    // collect the global variables in the aggregate
-    let g_vars = {
-        let mut set = aggr.get_variables(false);
-        aggr.elements.iter().for_each(|elem|
-            elem.add_variables(&mut set, false));
-        let mut vec: Vec<String> = body.get_variables(false).into_iter().filter(|var|
-            set.contains(var)).collect();
-        vec.sort();
-        vec
-    };
-
-    let a_idx = alpha.len();
-    alpha.push((aggr.clone(), g_vars));
-
-    // add epsilon rule
-    {
-        let mut args: Vec<Term> = alpha[a_idx].1.iter().map(|var|
-            Term::Variable(var.clone())).collect();
-        args.push(Term::Number(a_idx.try_into().unwrap()));
-        let head = Atom{name: "ε".to_string(), args};
-        let lhs = Term::Number(0);
-        let mut body = body.clone();
-        body.push(BodyLiteral::Literal(Literal::Comparison{lhs, rel: aggr.rel, rhs: aggr.guard.clone()}));
-        eta.push(Rule{head, body});
-    }
-
-    // add eta rules
-    for (e_idx, elem) in aggr.elements.iter().enumerate() {
-        let mut args: Vec<Term> = alpha[a_idx].1.iter().map(|var|
-            Term::Variable(var.clone())).collect();
-        args.push(Term::Number(a_idx.try_into().unwrap()));
-        args.push(Term::Number(e_idx.try_into().unwrap()));
-
-        let head = Atom{name: "η".to_string(), args: args.clone()};
-        let mut body = body.clone();
-        body.extend(elem.condition.iter().map(|atom|
-            BodyLiteral::Literal(Literal::Literal{positive: true, atom: atom.clone()})));
-        eta.push(Rule{head, body});
-    }
-
-    // replace aggregate with atom
-    {
-        let mut args: Vec<Term> = alpha[a_idx].1.iter().map(|var|
-            Term::Variable(var.clone())).collect();
-        args.push(Term::Number(a_idx.try_into().unwrap()));
-        let atom = Atom{name: "α".to_string(), args};
-        BodyLiteral::Literal(Literal::Literal{positive: true, atom})
-    }
-}
-
-fn rewrite_rule(rule: &Rule, alpha: &mut Vec<(Aggregate, Vec<String>)>) -> (Rule, Vec<Rule>) {
-    let mut eta = Vec::new();
-    let body = rule.body.iter().map(|blit|
-        if let BodyLiteral::Aggregate(aggr) = blit {
-            rewrite_aggregate(aggr, rule.body.iter().filter(|blit| 
-                matches!(blit, BodyLiteral::Literal(..))).cloned().collect(), alpha, &mut eta)
-        }
-        else {
-            blit.clone()
-        }).collect();
-    (Rule{head: rule.head.clone(), body}, eta)
-}
-
-fn rewrite_component(comp: &Vec<&Rule>) -> (Vec<(Aggregate, Vec<String>)>, Vec<(Rule, Vec<Rule>)>) {
-    let mut alpha = Vec::new();
-    let compr = comp.iter().map(|rule| {
-        let (ruler, eta) = rewrite_rule(rule, &mut alpha);
-        (ruler, eta)
-        }).collect();
-    (alpha, compr)
-}
-
-fn ground_component(alpham: &Vec<(Aggregate, Vec<String>)>, dom_i: &Domain, dom_j: &mut Domain, alpha: &Vec<&Rule>, eta: &Vec<&Rule>) -> Vec<Rule> {
+fn ground_component(dom_i: &Domain, dom_j: &mut Domain, comp: &Vec<&Rule>) -> Vec<Rule> {
     let mut ret = Vec::new();
     let mut dom_jp = Domain::new();
-    let mut alphas = PropagateState::new(alpham);
+    let (mut alphas, alpha, eta) = rewrite_component(comp);
+
     loop {
         // ground eta/epsilon rules
         let mut eta_g = Vec::new();
-        for rule in eta {
+        for rule in &eta {
             println!("%       {}", rule);
-            eta_g.append(&mut ground_rule(&Substitution::new(), dom_i, dom_j, &dom_jp, rule, 0, false));
+            eta_g.append(&mut ground_rule(&Substitution::new(), dom_i, dom_j, &dom_jp, &rule, 0, false));
         }
-        println!("ground eta_g: {}", eta_g.len());
         // propagate aggregates
         alphas.propagate(&eta_g, &mut dom_jp);
         // ground aggregate rules
         let m = ret.len();
-        for rule in alpha {
+        for rule in &alpha {
             println!("%       {}", rule);
-            ret.append(&mut ground_rule(&Substitution::new(), dom_i, dom_j, &dom_jp, rule, 0, false));
+            ret.append(&mut ground_rule(&Substitution::new(), dom_i, dom_j, &dom_jp, &rule, 0, false));
         }
         // next generation
         dom_jp = dom_j.clone();
@@ -228,25 +154,13 @@ pub fn ground(seq: &Vec<Vec<Vec<&Rule>>>) -> Vec<Rule> {
             ref_comp.iter().for_each(|rule| *open.entry(rule.head.sig()).or_insert(0) += 1);
         }
         for ref_comp in comp {
-            let (alpham, ref_compr) = rewrite_component(ref_comp);
-            let mut alphap: Vec<&Rule> = Vec::new();
-            let mut alpha: Vec<&Rule> = Vec::new();
-            let mut etap: Vec<&Rule> = Vec::new();
-            let mut eta: Vec<&Rule> = Vec::new();
-            for (rule, (rule_a, rules_e)) in ref_comp.iter().zip(ref_compr.iter()) {
-                if is_stratified(rule, &open) {
-                    alphap.push(&rule_a);
-                    etap.extend(rules_e.iter());
-                }
-                alpha.push(&rule_a);
-                eta.extend(rules_e.iter());
-            }
+            let ref_compp = ref_comp.iter().filter(|rule| is_stratified(rule, &open)).cloned().collect();
 
             println!("%   Ground Refined Component");
             println!("%     Ground Facts");
-            f.extend(ground_component(&alpham, &dom_j, &mut dom_i, &alphap, &etap));
+            f.extend(ground_component(&dom_j, &mut dom_i, &ref_compp));
             println!("%     Ground Program");
-            g.extend(ground_component(&alpham, &dom_i, &mut dom_j, &alpha, &eta));
+            g.extend(ground_component(&dom_i, &mut dom_j, &ref_comp));
 
             ref_comp.iter().for_each(|rule| *open.get_mut(&rule.head.sig()).unwrap() -= 1);
         }
