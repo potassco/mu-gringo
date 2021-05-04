@@ -198,6 +198,7 @@ impl fmt::Display for Rule {
             write!(f, " :- ")?;
             write_sep!(f, &self.body, ", ")?;
         }
+        write!(f, ".")?;
         return Ok(());
     }
 }
