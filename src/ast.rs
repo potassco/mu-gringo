@@ -166,8 +166,8 @@ impl fmt::Display for Literal {
 impl fmt::Display for AggregateElement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write_sep!(f, &self.terms)?;
-        write!(f, ":")?;
-        write_sep!(f, &self.condition)?;
+        write!(f, ": ")?;
+        write_sep!(f, &self.condition, ", ")?;
         return Ok(());
     }
 }
@@ -329,7 +329,7 @@ impl HasVariables for Atom {
 impl HasVariables for Literal {
     fn add_variables(&self, variables: &mut HashSet<String>, bound: bool) {
         match self {
-            Literal::Literal{atom, positive} if *positive || !bound => { 
+            Literal::Literal{atom, positive} if *positive || !bound => {
                 atom.add_variables(variables, bound);
             },
             Literal::Comparison{lhs, rhs, ..} if !bound => {

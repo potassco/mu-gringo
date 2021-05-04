@@ -9,7 +9,7 @@ type Eta = (usize, AggregateElement, Vec<String>);
 pub struct PropagateState {
     alpha: Vec<Alpha>,
     eta: Vec<Eta>,
-    grounding: HashMap<Atom, BTreeSet<AggregateElement>>,
+    grounding: HashMap<Atom, (Term, BTreeSet<AggregateElement>)>,
 }
 
 fn get_idx(args: &Vec<Term>) -> usize {
@@ -143,8 +143,9 @@ impl PropagateState {
                 let (aggr, aggr_atom, vars) = &self.alpha[idx_a];
                 let sub: Substitution = vars.iter().cloned().zip(args.iter().cloned()).collect();
                 let aggr_gatom = aggr_atom.apply(&sub);
-                self.grounding.entry(aggr_gatom.clone()).or_insert(BTreeSet::new());
-                todo.insert((aggr_gatom, aggr.guard.apply(&sub)));
+                let guard = aggr.guard.apply(&sub);
+                self.grounding.entry(aggr_gatom.clone()).or_insert((guard, BTreeSet::new()));
+                todo.insert(aggr_gatom);
             }
             else if name == "η" {
                 let idx_e = get_idx(args);
@@ -152,19 +153,21 @@ impl PropagateState {
                 let (aggr, aggr_atom, vars) = &self.alpha[*idx_a];
                 let sub: Substitution = vars.iter().chain(l_vars.iter()).cloned().zip(args.iter().cloned()).collect();
                 let aggr_gatom = aggr_atom.apply(&sub);
-                self.grounding.entry(aggr_gatom.clone()).or_insert(BTreeSet::new()).insert(elem.apply(&sub));
-                todo.insert((aggr_gatom, aggr.guard.apply(&sub)));
+                let guard = aggr.guard.apply(&sub);
+                self.grounding.entry(aggr_gatom.clone()).or_insert((guard, BTreeSet::new())).1.insert(elem.apply(&sub));
+                todo.insert(aggr_gatom);
             }
         }
-        for (gatom, guard) in todo {
+        for gatom in todo {
             let idx_a = get_idx(&gatom.args);
             let (aggr, _, _) = &self.alpha[idx_a];
+            let (guard, elements) = self.grounding.get(&gatom).unwrap();
             if match (aggr.fun, aggr.rel) {
                 (AggregateFunction::SumP, Relation::GreaterThan) |
                 (AggregateFunction::SumP, Relation::GreaterEqual) |
                 (AggregateFunction::Count, Relation::GreaterThan) |
                 (AggregateFunction::Count, Relation::GreaterEqual) => {
-                    self.propagate_monotone(&aggr, &guard, self.grounding.get(&gatom).unwrap())
+                    self.propagate_monotone(&aggr, guard, elements)
                 }
                 _ => panic!("Neither `<`, `<=`, `=` nor `!=` is implemented yet. Go implement them!!!")
             } {
@@ -178,7 +181,28 @@ impl PropagateState {
     /// Assemble aggregates and replace aggregate atoms in the given vector of rules.
     ///
     /// Furthermore, remove aggregate atoms from the domain.
-    pub fn assemble(&self, ret: Vec<Rule>, domain: &mut BTreeSet<Atom>) -> Vec<Rule> {
+    pub fn assemble(&self, mut ret: Vec<Rule>, domain: &mut BTreeSet<Atom>) -> Vec<Rule> {
+        // Note: retain/drain is still unstable
+        let alpha: Vec<Atom> = domain.iter().filter(|atom| atom.name == "α").cloned().collect();
+        alpha.iter().for_each(|atom| { domain.remove(atom); });
+        for rule in &mut ret {
+            for blit in &mut rule.body {
+                if let BodyLiteral::Literal(Literal::Literal{atom, positive}) = blit {
+                    if atom.name != "α" {
+                        continue;
+                    }
+                    assert!(*positive);
+                    let idx_a = get_idx(&atom.args);
+                    let (aggr, _, _) = &self.alpha[idx_a];
+                    let (guard, elements) = self.grounding.get(atom).unwrap();
+                    let aggr = Aggregate{fun: aggr.fun,
+                                         rel: aggr.rel,
+                                         elements: elements.iter().cloned().collect(),
+                                         guard: guard.clone()};
+                    *blit = BodyLiteral::Aggregate(aggr);
+                }
+            }
+        }
         ret
     }
 }
