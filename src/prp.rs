@@ -127,15 +127,44 @@ fn get_weight(aggr: &Aggregate, elem: &AggregateElement) -> i32 {
     }
 }
 
+/*
+macro_rules! print_sep {
+    ($l:expr, $seq:expr) => (
+        print_sep!($l, $seq, ",")
+    );
+    ($l:expr, $seq:expr, $sep:expr) => (
+        || -> () {
+            print!("{}", $l);
+            let mut comma = false;
+            for term in $seq {
+                if comma {
+                    print!($sep);
+                }
+                else {
+                    comma = true;
+                }
+                print!("{}", term);
+            }
+            println!("");
+        }()
+    )
+}
+*/
+
 impl PropagateState {
-    fn propagate_monotone(&self, aggr: &Aggregate, guard: &Term, elements: &BTreeSet<AggregateElement>) -> bool {
-        check_bound(&Term::Number(elements.iter().map(|elem| get_weight(aggr, elem)).sum()), aggr.rel, guard)
+    fn propagate_monotone(&self, aggr: &Aggregate, guard: &Term, elements: &BTreeSet<AggregateElement>, domain: &Domain) -> bool {
+        check_bound(&Term::Number(elements.iter().map(|elem|
+            if elem.condition.iter().all(|atom| domain.contains(atom)) {
+                get_weight(aggr, elem)
+            }
+            else {
+                0
+            }).sum()), aggr.rel, guard)
     }
     /// Propagate aggregates adding aggregate atoms to the domain if the aggregate became true.
     ///
     /// Maybe this functions needs to know more about he domain.
-    pub fn propagate(&mut self, eta: &Vec<Rule>, domain: &mut Domain) {
-        let mut todo = BTreeSet::new();
+    pub fn propagate(&mut self, eta: &Vec<Rule>, dom_i: &Domain, dom_j: &mut Domain) {
         for rule in eta {
             let Atom{name, args} = &rule.head;
             if name == "ε" {
@@ -145,7 +174,6 @@ impl PropagateState {
                 let aggr_gatom = aggr_atom.apply(&sub);
                 let guard = aggr.guard.apply(&sub);
                 self.grounding.entry(aggr_gatom.clone()).or_insert((guard, BTreeSet::new()));
-                todo.insert(aggr_gatom);
             }
             else if name == "η" {
                 let idx_e = get_idx(args);
@@ -155,23 +183,30 @@ impl PropagateState {
                 let aggr_gatom = aggr_atom.apply(&sub);
                 let guard = aggr.guard.apply(&sub);
                 self.grounding.entry(aggr_gatom.clone()).or_insert((guard, BTreeSet::new())).1.insert(elem.apply(&sub));
-                todo.insert(aggr_gatom);
             }
         }
-        for gatom in todo {
+        for (gatom, (guard, elements)) in self.grounding.iter() {
+            if dom_j.contains(gatom) {
+                continue;
+            }
             let idx_a = get_idx(&gatom.args);
             let (aggr, _, _) = &self.alpha[idx_a];
-            let (guard, elements) = self.grounding.get(&gatom).unwrap();
             if match (aggr.fun, aggr.rel) {
                 (AggregateFunction::SumP, Relation::GreaterThan) |
                 (AggregateFunction::SumP, Relation::GreaterEqual) |
                 (AggregateFunction::Count, Relation::GreaterThan) |
                 (AggregateFunction::Count, Relation::GreaterEqual) => {
-                    self.propagate_monotone(&aggr, guard, elements)
+                    self.propagate_monotone(&aggr, guard, elements, dom_j)
+                }
+                (AggregateFunction::SumP, Relation::LessThan) |
+                (AggregateFunction::SumP, Relation::LessEqual) |
+                (AggregateFunction::Count, Relation::LessThan) |
+                (AggregateFunction::Count, Relation::LessEqual) => {
+                    self.propagate_monotone(&aggr, guard, elements, dom_i)
                 }
                 _ => panic!("Neither `<`, `<=`, `=` nor `!=` is implemented yet. Go implement them!!!")
             } {
-                if domain.insert(gatom.clone()) {
+                if dom_j.insert(gatom.clone()) {
                     println!("%         {}", gatom);
                 }
             }

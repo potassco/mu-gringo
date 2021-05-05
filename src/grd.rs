@@ -20,9 +20,9 @@ impl GroundMatch for Term {
                     true
                 },
             (Term::Function(name, args), Term::Function(name_g, args_g)) =>
-                name == name_g && args.len() == args_g.len() && 
+                name == name_g && args.len() == args_g.len() &&
                     args.iter().zip(args_g).all(|(u, v)| u.ground_match(v, s)),
-            _ => 
+            _ =>
                 false,
         }
     }
@@ -31,7 +31,7 @@ impl GroundMatch for Term {
 impl GroundMatch for Atom {
     fn ground_match(&self, g: &Self, s: &mut Substitution) -> bool {
         self.name == g.name &&
-            self.args.len() == g.args.len() && 
+            self.args.len() == g.args.len() &&
             self.args.iter().zip(&g.args).all(|(u, v)| u.ground_match(v, s))
     }
 }
@@ -96,6 +96,8 @@ fn ground_rule(s: &Substitution, dom_i: &Domain, dom_j: &Domain, dom_jp: &Domain
 fn ground_component(dom_i: &Domain, dom_j: &mut Domain, comp: &Vec<&Rule>) -> Vec<Rule> {
     let mut ret = Vec::new();
     let mut dom_jp = Domain::new();
+    let mut dom_k = dom_i.iter().chain(dom_j.iter()).cloned().collect();
+    let mut dom_kp = Domain::new();
     let mut new = true; // Note: this addresses a glitch in the paper
     let (mut alphas, alpha, eta) = rewrite_component(comp);
 
@@ -106,11 +108,11 @@ fn ground_component(dom_i: &Domain, dom_j: &mut Domain, comp: &Vec<&Rule>) -> Ve
             let mut eta_g = Vec::new();
             for rule in &eta {
                 println!("%         {}", rule);
-                eta_g.append(&mut ground_rule(&Substitution::new(), dom_i, dom_j, &dom_jp, &rule, 0, new));
+                eta_g.append(&mut ground_rule(&Substitution::new(), dom_i, &dom_k, &dom_kp, &rule, 0, new));
             }
             // propagate aggregates
             println!("%       Propagate Aggregates");
-            alphas.propagate(&eta_g, dom_j);
+            alphas.propagate(&eta_g, dom_i, dom_j);
         }
         // ground aggregate rules
         println!("%       Ground Rules");
@@ -121,8 +123,10 @@ fn ground_component(dom_i: &Domain, dom_j: &mut Domain, comp: &Vec<&Rule>) -> Ve
         }
         // next generation
         dom_jp = dom_j.clone();
+        dom_kp = dom_k.clone();
         for rule in &ret[m..] {
             dom_j.insert(rule.head.clone());
+            dom_k.insert(rule.head.clone());
         }
         new = false;
         if dom_jp.len() == dom_j.len() {
