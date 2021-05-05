@@ -30,3 +30,14 @@ during grounding.
     cargo run examples/ex02.lp
     cargo run examples/ex03.lp
     cargo run examples/ex04.lp
+
+## TODO
+
+The following features are missing to cover the whole language introduced in
+the paper:
+
+- parse negative numbers
+- support `#sum` and `#sum-`
+- support `=` and `!=`
+
+[rust]: https://www.rust-lang.org/
