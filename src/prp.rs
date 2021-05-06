@@ -103,18 +103,18 @@ pub fn rewrite_component(comp: &Vec<&Rule>) -> (PropagateState, Vec<Rule>, Vec<R
     (PropagateState{alpha, eta, grounding: HashMap::new()}, rules_a, rules_e)
 }
 
-fn check_bound(term: &Term, rel: Relation, guard: &Term) -> bool {
-    match rel {
-        Relation::LessThan => term < guard,
-        Relation::LessEqual => term <= guard,
-        Relation::GreaterThan => term > guard,
-        Relation::GreaterEqual => term >= guard,
-        Relation::Equal => term == guard,
-        Relation::Inequal => term != guard,
-    }
-}
-
 impl PropagateState {
+    fn check_bound(term: &Term, rel: Relation, guard: &Term) -> bool {
+        match rel {
+            Relation::LessThan => term < guard,
+            Relation::LessEqual => term <= guard,
+            Relation::GreaterThan => term > guard,
+            Relation::GreaterEqual => term >= guard,
+            Relation::Equal => term == guard,
+            Relation::Inequal => term != guard,
+        }
+    }
+
     fn get_weight(fun: AggregateFunction, elem: &AggregateElement, dom: &Domain) -> i32 {
         if !Self::is_satisfied(dom, &elem.condition) {
             0
@@ -138,7 +138,7 @@ impl PropagateState {
     }
 
     fn propagate_monotone(fun: AggregateFunction, rel: Relation, guard: &Term, elements: &BTreeSet<AggregateElement>, domain: &Domain) -> bool {
-        check_bound(&Term::Number(elements.iter().map(|elem| Self::get_weight(fun, elem, domain)).sum()), rel, guard)
+        Self::check_bound(&Term::Number(elements.iter().map(|elem| Self::get_weight(fun, elem, domain)).sum()), rel, guard)
     }
 
     fn propagate_disjunction(elements: &BTreeSet<AggregateElement>, dom_i: &Domain, dom_j: &Domain) -> bool {
