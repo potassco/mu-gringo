@@ -28,8 +28,8 @@ during grounding.
 
     cargo run examples/ex01.lp
     cargo run examples/ex02.lp
-    cargo run examples/ex03.lp
-    cargo run examples/ex04.lp
+    ...
+    cargo run examples/ex07.lp
 
 ## TODO
 
@@ -38,6 +38,5 @@ the paper:
 
 - parse negative numbers
 - support `#sum` and `#sum-`
-- support `=` and `!=`
 
 [rust]: https://www.rust-lang.org/

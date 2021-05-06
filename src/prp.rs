@@ -113,61 +113,60 @@ fn check_bound(term: &Term, rel: Relation, guard: &Term) -> bool {
         Relation::Inequal => term != guard,
     }
 }
-fn get_weight(fun: AggregateFunction, elem: &AggregateElement) -> i32 {
-    match fun {
-        AggregateFunction::Count => 1,
-        AggregateFunction::SumP => {
-            if let Some(Term::Number(w)) = elem.terms.first() {
-                0.max(*w)
-            }
-            else {
-                0
-            }
-        },
-    }
-}
-
-/*
-macro_rules! print_sep {
-    ($l:expr, $seq:expr) => (
-        print_sep!($l, $seq, ",")
-    );
-    ($l:expr, $seq:expr, $sep:expr) => (
-        || -> () {
-            print!("{}", $l);
-            let mut comma = false;
-            for term in $seq {
-                if comma {
-                    print!($sep);
-                }
-                else {
-                    comma = true;
-                }
-                print!("{}", term);
-            }
-            println!("");
-        }()
-    )
-}
-*/
 
 impl PropagateState {
+    fn get_weight(fun: AggregateFunction, elem: &AggregateElement, dom: &Domain) -> i32 {
+        if !Self::is_satisfied(dom, &elem.condition) {
+            0
+        }
+        else {
+            match fun {
+                AggregateFunction::Count => 1,
+                AggregateFunction::SumP => {
+                    if let Some(Term::Number(w)) = elem.terms.first() {
+                        0.max(*w)
+                    }
+                    else {
+                        0
+                    }
+                },
+            }
+        }
+    }
     fn is_satisfied(domain: &Domain, condition: &Vec<Atom>) -> bool {
         condition.iter().all(|atom| domain.contains(atom))
     }
 
     fn propagate_monotone(fun: AggregateFunction, rel: Relation, guard: &Term, elements: &BTreeSet<AggregateElement>, domain: &Domain) -> bool {
-        check_bound(&Term::Number(elements.iter().map(|elem|
-            if Self::is_satisfied(domain, &elem.condition) {
-                get_weight(fun, elem)
-            }
-            else {
-                0
-            }).sum()), rel, guard)
+        check_bound(&Term::Number(elements.iter().map(|elem| Self::get_weight(fun, elem, domain)).sum()), rel, guard)
     }
+
     fn propagate_disjunction(elements: &BTreeSet<AggregateElement>, dom_i: &Domain, dom_j: &Domain) -> bool {
         elements.iter().any(|elem| 
             !Self::is_satisfied(dom_i, &elem.condition) && Self::is_satisfied(dom_j, &elem.condition))
+    }
+
+    /// Returns true if the sums all subsets of ele_i are inequal to sum_j + guard.
+    ///
+    /// I made no attempt to implement this efficiently.
+    fn check_subsets(ele_i: &[i32], sum_j: i32, guard: &Term) -> bool {
+       if ele_i.is_empty() {
+           &Term::Number(sum_j) != guard
+       }
+       else {
+           Self::check_subsets(&ele_i[1..], sum_j, guard) && Self::check_subsets(&ele_i[1..], sum_j + ele_i[0], guard)
+       }
+    }
+
+    fn propagate_inequal(fun: AggregateFunction, guard: &Term, elements: &BTreeSet<AggregateElement>, dom_i: &Domain, dom_j: &Domain) -> bool {
+        let sum_j: i32 = elements.iter()
+                                 .map(|elem| Self::get_weight(fun, elem, dom_j)).sum();
+        let ele_i: Vec<i32> = elements.iter()
+                                      .filter(|elem| !Self::is_satisfied(dom_j, &elem.condition))
+                                      .map(|elem| Self::get_weight(fun, elem, dom_i))
+                                      .filter(|elem| *elem > 0)
+                                      .collect();
+        Self::check_subsets(&ele_i[..], sum_j, guard)
     }
     /// Propagate aggregates adding aggregate atoms to the domain if the aggregate became true.
     ///
@@ -218,7 +217,21 @@ impl PropagateState {
                         Self::propagate_disjunction(elements, dom_i, dom_j)
 
                 },
-                _ => panic!("Neither `<`, `<=`, `=` nor `!=` is implemented yet. Go implement them!!!")
+                (AggregateFunction::SumP, Relation::Inequal) => {
+                    Self::propagate_monotone(aggr.fun, Relation::GreaterThan, guard, elements, dom_j) ||
+                        Self::propagate_monotone(aggr.fun, Relation::LessThan, guard, elements, dom_i) ||
+                        Self::propagate_inequal(aggr.fun, &guard, &elements, dom_i, dom_j)
+
+                },
+                (AggregateFunction::Count, Relation::Equal) => {
+                    Self::propagate_monotone(aggr.fun, Relation::GreaterEqual, guard, elements, dom_j) &&
+                        Self::propagate_monotone(aggr.fun, Relation::LessEqual, guard, elements, dom_i)
+                },
+                (AggregateFunction::SumP, Relation::Equal) => {
+                    Self::propagate_monotone(aggr.fun, Relation::GreaterEqual, guard, elements, dom_j) &&
+                        Self::propagate_monotone(aggr.fun, Relation::LessEqual, guard, elements, dom_i) &&
+                        !Self::propagate_inequal(aggr.fun, &guard, &elements, dom_j, dom_i)
+                }
             } {
                 if dom_j.insert(gatom.clone()) {
                     println!("%         {}", gatom);
