@@ -36,7 +36,6 @@ during grounding.
 The following features are missing to cover the whole language introduced in
 the paper:
 
-- parse negative numbers
-- support `#sum` and `#sum-`
+- add support for `#sum`
 
 [rust]: https://www.rust-lang.org/

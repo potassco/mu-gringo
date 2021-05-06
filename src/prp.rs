@@ -130,6 +130,14 @@ impl PropagateState {
                         0
                     }
                 },
+                AggregateFunction::SumM => {
+                    if let Some(Term::Number(w)) = elem.terms.first() {
+                        0.min(*w)
+                    }
+                    else {
+                        0
+                    }
+                },
             }
         }
     }
@@ -164,7 +172,7 @@ impl PropagateState {
         let ele_i: Vec<i32> = elements.iter()
                                       .filter(|elem| !Self::is_satisfied(dom_j, &elem.condition))
                                       .map(|elem| Self::get_weight(fun, elem, dom_i))
-                                      .filter(|elem| *elem > 0)
+                                      .filter(|elem| *elem != 0)
                                       .collect();
         Self::check_subsets(&ele_i[..], sum_j, guard)
     }
@@ -199,39 +207,43 @@ impl PropagateState {
             let idx_a = get_idx(&gatom.args);
             let (aggr, _, _) = &self.alpha[idx_a];
             if match (aggr.fun, aggr.rel) {
+                (AggregateFunction::Count, Relation::GreaterThan) |
+                (AggregateFunction::Count, Relation::GreaterEqual) |
                 (AggregateFunction::SumP, Relation::GreaterThan) |
                 (AggregateFunction::SumP, Relation::GreaterEqual) |
-                (AggregateFunction::Count, Relation::GreaterThan) |
-                (AggregateFunction::Count, Relation::GreaterEqual) => {
-                    Self::propagate_monotone(aggr.fun, aggr.rel, guard, elements, dom_j)
-                },
+                (AggregateFunction::SumM, Relation::LessThan) |
+                (AggregateFunction::SumM, Relation::LessEqual) =>
+                    Self::propagate_monotone(aggr.fun, aggr.rel, guard, elements, dom_j),
+                (AggregateFunction::Count, Relation::LessThan) |
+                (AggregateFunction::Count, Relation::LessEqual) |
                 (AggregateFunction::SumP, Relation::LessThan) |
                 (AggregateFunction::SumP, Relation::LessEqual) |
-                (AggregateFunction::Count, Relation::LessThan) |
-                (AggregateFunction::Count, Relation::LessEqual) => {
-                    Self::propagate_monotone(aggr.fun, aggr.rel, guard, elements, dom_i)
-                },
-                (AggregateFunction::Count, Relation::Inequal) => {
+                (AggregateFunction::SumM, Relation::GreaterThan) |
+                (AggregateFunction::SumM, Relation::GreaterEqual) =>
+                    Self::propagate_monotone(aggr.fun, aggr.rel, guard, elements, dom_i),
+                (AggregateFunction::Count, Relation::Inequal) =>
                     Self::propagate_monotone(aggr.fun, Relation::GreaterThan, guard, elements, dom_j) ||
                         Self::propagate_monotone(aggr.fun, Relation::LessThan, guard, elements, dom_i) ||
-                        Self::propagate_disjunction(elements, dom_i, dom_j)
-
-                },
-                (AggregateFunction::SumP, Relation::Inequal) => {
-                    Self::propagate_monotone(aggr.fun, Relation::GreaterThan, guard, elements, dom_j) ||
-                        Self::propagate_monotone(aggr.fun, Relation::LessThan, guard, elements, dom_i) ||
-                        Self::propagate_inequal(aggr.fun, &guard, &elements, dom_i, dom_j)
-
-                },
-                (AggregateFunction::Count, Relation::Equal) => {
+                        Self::propagate_disjunction(elements, dom_i, dom_j),
+                (AggregateFunction::Count, Relation::Equal) =>
                     Self::propagate_monotone(aggr.fun, Relation::GreaterEqual, guard, elements, dom_j) &&
-                        Self::propagate_monotone(aggr.fun, Relation::LessEqual, guard, elements, dom_i)
-                },
-                (AggregateFunction::SumP, Relation::Equal) => {
+                        Self::propagate_monotone(aggr.fun, Relation::LessEqual, guard, elements, dom_i),
+                (AggregateFunction::SumP, Relation::Inequal) =>
+                    Self::propagate_monotone(aggr.fun, Relation::GreaterThan, guard, elements, dom_j) ||
+                        Self::propagate_monotone(aggr.fun, Relation::LessThan, guard, elements, dom_i) ||
+                        Self::propagate_inequal(aggr.fun, &guard, &elements, dom_i, dom_j),
+                (AggregateFunction::SumP, Relation::Equal) =>
                     Self::propagate_monotone(aggr.fun, Relation::GreaterEqual, guard, elements, dom_j) &&
                         Self::propagate_monotone(aggr.fun, Relation::LessEqual, guard, elements, dom_i) &&
-                        !Self::propagate_inequal(aggr.fun, &guard, &elements, dom_j, dom_i)
-                }
+                        !Self::propagate_inequal(aggr.fun, &guard, &elements, dom_j, dom_i),
+                (AggregateFunction::SumM, Relation::Inequal) =>
+                    Self::propagate_monotone(aggr.fun, Relation::LessThan, guard, elements, dom_j) ||
+                        Self::propagate_monotone(aggr.fun, Relation::GreaterThan, guard, elements, dom_i) ||
+                        Self::propagate_inequal(aggr.fun, &guard, &elements, dom_i, dom_j),
+                (AggregateFunction::SumM, Relation::Equal) =>
+                    Self::propagate_monotone(aggr.fun, Relation::LessEqual, guard, elements, dom_j) &&
+                        Self::propagate_monotone(aggr.fun, Relation::GreaterEqual, guard, elements, dom_i) &&
+                        !Self::propagate_inequal(aggr.fun, &guard, &elements, dom_j, dom_i),
             } {
                 println!("%         {}", gatom);
                 dom_j.insert(gatom.clone());
