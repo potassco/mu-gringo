@@ -233,9 +233,8 @@ impl PropagateState {
                         !Self::propagate_inequal(aggr.fun, &guard, &elements, dom_j, dom_i)
                 }
             } {
-                if dom_j.insert(gatom.clone()) {
-                    println!("%         {}", gatom);
-                }
+                println!("%         {}", gatom);
+                dom_j.insert(gatom.clone());
             }
         }
     }
