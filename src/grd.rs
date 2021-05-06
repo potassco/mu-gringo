@@ -153,6 +153,28 @@ fn is_stratified(rule: &Rule, open: &HashMap<(&str, usize), i32>) -> bool {
     })
 }
 
+macro_rules! print_sep {
+    ($l:expr, $seq:expr) => (
+        print_sep!($l, $seq, ",")
+    );
+    ($l:expr, $seq:expr, $sep:expr) => (
+        || -> () {
+            print!("{}", $l);
+            let mut comma = false;
+            for term in $seq {
+                if comma {
+                    print!($sep);
+                }
+                else {
+                    comma = true;
+                }
+                print!("{}", term);
+            }
+            println!("");
+        }()
+    )
+}
+
 pub fn ground(seq: &Vec<Vec<Vec<&Rule>>>) -> Vec<Rule> {
     let mut dom_i = Domain::new();
     let mut dom_j = Domain::new();
@@ -176,6 +198,8 @@ pub fn ground(seq: &Vec<Vec<Vec<&Rule>>>) -> Vec<Rule> {
             ref_comp.iter().for_each(|rule| *open.get_mut(&rule.head.sig()).unwrap() -= 1);
         }
     }
+    print_sep!("% Certain : ", &dom_i, ", ");
+    print_sep!("% Possible: ", &dom_j, ", ");
     g
 }
 

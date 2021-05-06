@@ -113,8 +113,8 @@ fn check_bound(term: &Term, rel: Relation, guard: &Term) -> bool {
         Relation::Inequal => term != guard,
     }
 }
-fn get_weight(aggr: &Aggregate, elem: &AggregateElement) -> i32 {
-    match aggr.fun {
+fn get_weight(fun: AggregateFunction, elem: &AggregateElement) -> i32 {
+    match fun {
         AggregateFunction::Count => 1,
         AggregateFunction::SumP => {
             if let Some(Term::Number(w)) = elem.terms.first() {
@@ -152,14 +152,22 @@ macro_rules! print_sep {
 */
 
 impl PropagateState {
-    fn propagate_monotone(&self, aggr: &Aggregate, guard: &Term, elements: &BTreeSet<AggregateElement>, domain: &Domain) -> bool {
+    fn is_satisfied(domain: &Domain, condition: &Vec<Atom>) -> bool {
+        condition.iter().all(|atom| domain.contains(atom))
+    }
+
+    fn propagate_monotone(fun: AggregateFunction, rel: Relation, guard: &Term, elements: &BTreeSet<AggregateElement>, domain: &Domain) -> bool {
         check_bound(&Term::Number(elements.iter().map(|elem|
-            if elem.condition.iter().all(|atom| domain.contains(atom)) {
-                get_weight(aggr, elem)
+            if Self::is_satisfied(domain, &elem.condition) {
+                get_weight(fun, elem)
             }
             else {
                 0
-            }).sum()), aggr.rel, guard)
+            }).sum()), rel, guard)
+    }
+    fn propagate_disjunction(elements: &BTreeSet<AggregateElement>, dom_i: &Domain, dom_j: &Domain) -> bool {
+        elements.iter().any(|elem| 
+            !Self::is_satisfied(dom_i, &elem.condition) && Self::is_satisfied(dom_j, &elem.condition))
     }
     /// Propagate aggregates adding aggregate atoms to the domain if the aggregate became true.
     ///
@@ -196,14 +204,20 @@ impl PropagateState {
                 (AggregateFunction::SumP, Relation::GreaterEqual) |
                 (AggregateFunction::Count, Relation::GreaterThan) |
                 (AggregateFunction::Count, Relation::GreaterEqual) => {
-                    self.propagate_monotone(&aggr, guard, elements, dom_j)
-                }
+                    Self::propagate_monotone(aggr.fun, aggr.rel, guard, elements, dom_j)
+                },
                 (AggregateFunction::SumP, Relation::LessThan) |
                 (AggregateFunction::SumP, Relation::LessEqual) |
                 (AggregateFunction::Count, Relation::LessThan) |
                 (AggregateFunction::Count, Relation::LessEqual) => {
-                    self.propagate_monotone(&aggr, guard, elements, dom_i)
-                }
+                    Self::propagate_monotone(aggr.fun, aggr.rel, guard, elements, dom_i)
+                },
+                (AggregateFunction::Count, Relation::Inequal) => {
+                    Self::propagate_monotone(aggr.fun, Relation::GreaterThan, guard, elements, dom_j) ||
+                        Self::propagate_monotone(aggr.fun, Relation::LessThan, guard, elements, dom_i) ||
+                        Self::propagate_disjunction(elements, dom_i, dom_j)
+
+                },
                 _ => panic!("Neither `<`, `<=`, `=` nor `!=` is implemented yet. Go implement them!!!")
             } {
                 if dom_j.insert(gatom.clone()) {
