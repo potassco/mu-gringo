@@ -304,8 +304,22 @@ impl PropagateState {
                 (AggregateFunction::Sum, Relation::LessThan) |
                 (AggregateFunction::Sum, Relation::LessEqual) =>
                     Self::propagate_nonmonotone(aggr.rel, guard, elements, dom_i, dom_j),
-                (AggregateFunction::Sum, _) =>
-                    panic!("implement sum with = and !=")
+                (AggregateFunction::Sum, Relation::Inequal) =>
+                    Self::propagate_nonmonotone(Relation::LessThan, guard, elements, dom_i, dom_j) ||
+                        Self::propagate_nonmonotone(Relation::GreaterThan, guard, elements, dom_i, dom_j) ||
+                        Self::propagate_inequal(aggr.fun, &guard, &elements, dom_i, dom_j),
+                (AggregateFunction::Sum, Relation::Equal) =>
+                    // propagating possible atoms
+                    // - fixed = sum of certain weights (dom_i)
+                    // - is there a subset set of possible weights such that the aggregate is
+                    //   satisfiable (dom_j - dom_i)
+                    // propagating certain atoms
+                    // - fixed = sum of certain weights (dom_j)
+                    // - the aggregate must be satisfiable for all subsets of possible weights
+                    //   (dom_i - mod_j)
+                    Self::propagate_nonmonotone(Relation::LessEqual, guard, elements, dom_i, dom_j) &&
+                        Self::propagate_nonmonotone(Relation::GreaterEqual, guard, elements, dom_i, dom_j) &&
+                        !Self::propagate_inequal(aggr.fun, &guard, &elements, dom_j, dom_i),
             } {
                 if get_verbose() {
                     println!("%         {}", gatom);

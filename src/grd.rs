@@ -216,3 +216,139 @@ pub fn ground(seq: &Vec<Vec<Vec<&Rule>>>) -> Vec<Rule> {
     g
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::dep;
+
+    fn ground_string(content: &str) -> Vec<String> {
+        let mut prg = parse(content).unwrap();
+        assert!(dep::check(prg.iter()));
+        dep::order(&mut prg.iter_mut());
+        let seq = dep::grd_seq(prg.iter());
+        let mut rules = Vec::new();
+        for rule in ground(&seq) {
+            rules.push(rule);
+        }
+        rules.sort();
+        rules.iter().map(|rule| format!("{}", rule)).collect()
+    }
+
+    #[test]
+    fn test_normal() {
+        assert_eq!(ground_string("a."), vec!["a."]);
+        assert_eq!(ground_string("a :- b."), Vec::<String>::new());
+        assert_eq!(ground_string("a. b :- a."), vec!["a.", "b :- a."]);
+    }
+
+    #[test]
+    fn test_sum_equal() {
+        assert_eq!(ground_string("a. b. d :- #sum { 1,a: a; -1,b: b } = 0."), vec![
+            "a.",
+            "b.",
+            "d :- #sum { -1,b: b; 1,a: a } = 0."]);
+        for bound in &[-1, 1] {
+            assert_eq!(ground_string(format!("a. b. e :- #sum {{ 1,a: a; -1,b: b }} = {}.", bound).as_str()), vec![
+                "a.",
+                "b."]);
+        }
+        // Note: cannot be equal, so the aggregate is false
+        for bound in &[-5, -3, -2, 1, 2, 4] {
+            assert_eq!(
+                ground_string(format!("
+                    a. b.
+                    c :- not d.
+                    d :- not c.
+                    e :- #sum {{ 1,a: a;
+                               -2,b: b;
+                               -3,c: c;
+                                4,d: d }} = {}.
+                    f :- not e.
+                    g :- not f.", bound).as_str()),
+                vec![
+                    "a.",
+                    "b.",
+                    "c :- not d.",
+                    "d :- not c.",
+                    "f :- not e."]);
+        }
+        // Note: might be equal, so the aggregate is possible
+        for bound in &[-4, -1, 0, 3] {
+            assert_eq!(
+                ground_string(format!("
+                    a. b.
+                    c :- not d.
+                    d :- not c.
+                    e :- #sum {{ 1,a: a;
+                               -2,b: b;
+                               -3,c: c;
+                                4,d: d }} = {}.
+                    f :- not e.
+                    g :- not f.", bound).as_str()),
+                vec![
+                    "a.",
+                    "b.",
+                    "c :- not d.",
+                    "d :- not c.",
+                    format!("e :- #sum {{ -3,c: c; -2,b: b; 1,a: a; 4,d: d }} = {}.", bound).as_str(),
+                    "f :- not e.",
+                    "g :- not f."]);
+        }
+    }
+
+    #[test]
+    fn test_sum_inequal() {
+        assert_eq!(ground_string("a. b. c :- #sum { 1,a: a; -1,b: b } != 0."), vec![
+            "a.",
+            "b."]);
+        for bound in &[-1, 1] {
+            assert_eq!(ground_string(format!("a. b. c :- #sum {{ 1,a: a; -1,b: b }} != {}.", bound).as_str()), vec![
+                "a.",
+                "b.",
+                format!("c :- #sum {{ -1,b: b; 1,a: a }} != {}.", bound).as_str()]);
+        }
+        // Note: cannot be equal, so the aggregate is a certain
+        for bound in &[-5, -3, -2, 1, 2, 4] {
+            assert_eq!(
+                ground_string(format!("
+                    a. b.
+                    c :- not d.
+                    d :- not c.
+                    e :- #sum {{ 1,a: a;
+                               -2,b: b;
+                               -3,c: c;
+                                4,d: d }} != {}.
+                    f :- not e.
+                    g :- not f.", bound).as_str()),
+                vec![
+                    "a.",
+                    "b.",
+                    "c :- not d.",
+                    "d :- not c.",
+                    format!("e :- #sum {{ -3,c: c; -2,b: b; 1,a: a; 4,d: d }} != {}.", bound).as_str(),
+                    "g :- not f."]);
+        }
+        // Note: might be equal, so the aggregate is possible
+        for bound in &[-4, -1, 0, 3] {
+            assert_eq!(
+                ground_string(format!("
+                    a. b.
+                    c :- not d.
+                    d :- not c.
+                    e :- #sum {{ 1,a: a;
+                               -2,b: b;
+                               -3,c: c;
+                                4,d: d }} != {}.
+                    f :- not e.
+                    g :- not f.", bound).as_str()),
+                vec![
+                    "a.",
+                    "b.",
+                    "c :- not d.",
+                    "d :- not c.",
+                    format!("e :- #sum {{ -3,c: c; -2,b: b; 1,a: a; 4,d: d }} != {}.", bound).as_str(),
+                    "f :- not e.",
+                    "g :- not f."]);
+        }
+    }
+}

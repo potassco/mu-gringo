@@ -18,7 +18,7 @@ pub struct Atom {
     pub args: Vec<Term>,
 }
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
 pub enum Relation {
     LessThan,
     LessEqual,
@@ -28,13 +28,13 @@ pub enum Relation {
     Inequal,
 }
 
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 pub enum Literal {
     Literal{positive: bool, atom: Atom},
     Comparison{lhs: Term, rel: Relation, rhs: Term},
 }
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
 pub enum AggregateFunction {
     Count,
     SumP,
@@ -48,7 +48,7 @@ pub struct AggregateElement {
     pub condition: Vec<Atom>,
 }
 
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 pub struct Aggregate {
     pub fun: AggregateFunction,
     pub elements: Vec<AggregateElement>,
@@ -56,13 +56,13 @@ pub struct Aggregate {
     pub guard: Term,
 }
 
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 pub enum BodyLiteral {
     Literal(Literal),
     Aggregate(Aggregate),
 }
 
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
 pub struct Rule {
     pub head: Atom,
     pub body: Vec<BodyLiteral>,
