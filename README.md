@@ -5,8 +5,8 @@ Foundations of Grounding in Answer Set Programming". Unlike a system like
 clingo, this implementation is not meant to be used in practice. It is very
 inefficient, does not translate into a format accepted by existing ASP solvers,
 and only considers a very restricted input language. Instead, the algorithms
-here are implemented as simple and straight-forward as possible to give an idea
-how a grounder proceeds.
+here are implemented as simple and straight-forward as possible with the goal
+to give an idea how a grounder proceeds.
 
 ## Usage
 
@@ -29,13 +29,6 @@ during grounding.
     cargo run examples/ex01.lp
     cargo run examples/ex02.lp
     ...
-    cargo run examples/ex07.lp
-
-## TODO
-
-The following features are missing to cover the whole language introduced in
-the paper:
-
-- add support for `#sum` with the `!=` and `=` relation
+    cargo run examples/ex11.lp
 
 [rust]: https://www.rust-lang.org/
