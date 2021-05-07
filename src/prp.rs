@@ -41,8 +41,9 @@ fn rewrite_aggregate(aggr: &Aggregate, body: Vec<BodyLiteral>, alpha: &mut Vec<A
         let mut set = aggr.get_variables(false);
         aggr.elements.iter().for_each(|elem|
             elem.add_variables(&mut set, false));
-        let mut vec: Vec<String> = body.get_variables(false).into_iter().filter(|var|
-            set.contains(var)).collect();
+        let mut vec: Vec<String> = body.get_variables(false)
+                                       .into_iter().filter(|var| set.contains(var))
+                                       .collect();
         vec.sort();
         vec
     };
@@ -66,13 +67,17 @@ fn rewrite_aggregate(aggr: &Aggregate, body: Vec<BodyLiteral>, alpha: &mut Vec<A
         let e_idx = eta.len();
         // collect local variables in aggregate element
         let l_vars = {
-            let mut vec: Vec<String> = elem.get_variables(false).into_iter().filter(|x|
-                g_vars.binary_search(x).is_err()).collect();
+            let mut vec: Vec<String> = elem.get_variables(false)
+                                           .into_iter()
+                                           .filter(|x| g_vars.binary_search(x).is_err())
+                                           .collect();
             vec.sort();
             vec
         };
-        let mut args: Vec<Term> = g_vars.iter().chain(l_vars.iter()).map(|var|
-            Term::Variable(var.clone())).collect();
+        let mut args: Vec<Term> = g_vars.iter()
+                                        .chain(l_vars.iter())
+                                        .map(|var| Term::Variable(var.clone()))
+                                        .collect();
         args.push(Term::Number(e_idx.try_into().unwrap()));
 
         let head = Atom{name: "η".to_string(), args: args.clone()};
@@ -98,8 +103,10 @@ fn rewrite_aggregate(aggr: &Aggregate, body: Vec<BodyLiteral>, alpha: &mut Vec<A
 fn rewrite_rule(rule: &Rule, alpha: &mut Vec<Alpha>, eta: &mut Vec<Eta>, rules_eta: &mut Vec<Rule>) -> Rule {
     let body = rule.body.iter().map(|blit|
         if let BodyLiteral::Aggregate(aggr) = blit {
-            rewrite_aggregate(aggr, rule.body.iter().filter(|blit|
-                matches!(blit, BodyLiteral::Literal(..))).cloned().collect(), alpha, eta, rules_eta)
+            rewrite_aggregate(aggr, rule.body.iter()
+                                        .filter(|blit| matches!(blit, BodyLiteral::Literal(..)))
+                                        .cloned()
+                                        .collect(), alpha, eta, rules_eta)
         }
         else {
             blit.clone()
@@ -111,8 +118,9 @@ pub fn rewrite_component(comp: &Vec<&Rule>) -> (PropagateState, Vec<Rule>, Vec<R
     let mut alpha = Vec::new();
     let mut eta = Vec::new();
     let mut rules_e = Vec::new();
-    let rules_a = comp.iter().map(|rule|
-        rewrite_rule(rule, &mut alpha, &mut eta, &mut rules_e)).collect();
+    let rules_a = comp.iter()
+                      .map(|rule| rewrite_rule(rule, &mut alpha, &mut eta, &mut rules_e))
+                      .collect();
     (PropagateState{alpha, eta, grounding: HashMap::new()}, rules_a, rules_e)
 }
 
@@ -188,8 +196,8 @@ impl PropagateState {
     }
 
     fn propagate_disjunction(elements: &BTreeSet<AggregateElement>, dom_i: &Domain, dom_j: &Domain) -> bool {
-        elements.iter().any(|elem| 
-            !Self::is_satisfied(dom_i, &elem.condition) && Self::is_satisfied(dom_j, &elem.condition))
+        elements.iter()
+                .any(|elem| !Self::is_satisfied(dom_i, &elem.condition) && Self::is_satisfied(dom_j, &elem.condition))
     }
 
     /// Returns true if the sums all subsets of ele_i are inequal to sum_j + guard.
@@ -223,7 +231,10 @@ impl PropagateState {
             if name == "ε" {
                 let idx_a = get_idx(args);
                 let (aggr, aggr_atom, vars) = &self.alpha[idx_a];
-                let sub: Substitution = vars.iter().cloned().zip(args.iter().cloned()).collect();
+                let sub: Substitution = vars.iter()
+                                            .cloned()
+                                            .zip(args.iter().cloned())
+                                            .collect();
                 let aggr_gatom = aggr_atom.apply(&sub);
                 let guard = aggr.guard.apply(&sub);
                 self.grounding.entry(aggr_gatom.clone()).or_insert((guard, BTreeSet::new()));
@@ -232,10 +243,16 @@ impl PropagateState {
                 let idx_e = get_idx(args);
                 let (idx_a, elem, l_vars) = &self.eta[idx_e];
                 let (aggr, aggr_atom, vars) = &self.alpha[*idx_a];
-                let sub: Substitution = vars.iter().chain(l_vars.iter()).cloned().zip(args.iter().cloned()).collect();
+                let sub: Substitution = vars.iter()
+                                            .chain(l_vars.iter())
+                                            .cloned()
+                                            .zip(args.iter().cloned())
+                                            .collect();
                 let aggr_gatom = aggr_atom.apply(&sub);
                 let guard = aggr.guard.apply(&sub);
-                self.grounding.entry(aggr_gatom.clone()).or_insert((guard, BTreeSet::new())).1.insert(elem.apply(&sub));
+                self.grounding.entry(aggr_gatom.clone())
+                              .or_insert((guard, BTreeSet::new()))
+                              .1.insert(elem.apply(&sub));
             }
         }
         for (gatom, (guard, elements)) in self.grounding.iter() {
@@ -315,7 +332,9 @@ impl PropagateState {
                     let (guard, elements) = self.grounding.get(atom).unwrap();
                     let aggr = Aggregate{fun: aggr.fun,
                                          rel: aggr.rel,
-                                         elements: elements.iter().cloned().collect(),
+                                         elements: elements.iter()
+                                                           .cloned()
+                                                           .collect(),
                                          guard: guard.clone()};
                     *blit = BodyLiteral::Aggregate(aggr);
                 }
