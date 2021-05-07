@@ -13,7 +13,7 @@ List<T, s>: Vec<T> = {
     }
 }
 
-Num: i32 = <s:r"-?[0-9]+"> => i32::from_str(s).unwrap();
+Num: i32 = <s:r"-?(0|[1-9][0-9]*)"> => i32::from_str(s).unwrap();
 Id: String = <s:r"[a-z][A-Za-z0-9_]*"> => String::from(s);
 Var: String = <s:r"[A-Z][A-Za-z0-9_]*"> => String::from(s);
 
@@ -46,6 +46,7 @@ AggregateFunction: AggregateFunction = {
     "#count" => AggregateFunction::Count,
     "#sum+" => AggregateFunction::SumP,
     "#sum-" => AggregateFunction::SumM,
+    "#sum" => AggregateFunction::Sum,
 }
 
 Aggregate: Aggregate = {

@@ -36,6 +36,6 @@ during grounding.
 The following features are missing to cover the whole language introduced in
 the paper:
 
-- add support for `#sum`
+- add support for `#sum` with the `!=` and `=` relation
 
 [rust]: https://www.rust-lang.org/

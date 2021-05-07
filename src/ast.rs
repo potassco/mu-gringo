@@ -39,6 +39,7 @@ pub enum AggregateFunction {
     Count,
     SumP,
     SumM,
+    Sum,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
@@ -114,6 +115,7 @@ impl fmt::Display for AggregateFunction {
             AggregateFunction::Count => write!(f, "#count"),
             AggregateFunction::SumP => write!(f, "#sum+"),
             AggregateFunction::SumM => write!(f, "#sum-"),
+            AggregateFunction::Sum => write!(f, "#sum"),
         }
     }
 }
@@ -221,6 +223,7 @@ impl ClassifyPosNeg for Aggregate {
             (AggregateFunction::SumP, Relation::GreaterEqual) => true,
             (AggregateFunction::SumM, Relation::LessThan) => true,
             (AggregateFunction::SumM, Relation::LessEqual) => true,
+            (AggregateFunction::Sum, _) => true,
             _ => false,
         }
     }
@@ -234,6 +237,7 @@ impl ClassifyPosNeg for Aggregate {
             (AggregateFunction::SumP, Relation::LessEqual) => true,
             (AggregateFunction::SumM, Relation::GreaterThan) => true,
             (AggregateFunction::SumM, Relation::GreaterEqual) => true,
+            (AggregateFunction::Sum, _) => true,
             _ => false,
         }
     }
