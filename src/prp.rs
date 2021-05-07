@@ -1,6 +1,19 @@
 use crate::ast::*;
 use std::collections::{HashMap, BTreeSet};
 use std::convert::TryInto;
+use std::cell::Cell;
+
+thread_local! {
+    static VERBOSE: Cell<bool> = Cell::new(false);
+}
+
+pub fn set_verbose(val: bool) {
+    VERBOSE.with(|value| value.set(val));
+}
+
+pub fn get_verbose() -> bool {
+    VERBOSE.with(|value| value.get())
+}
 
 pub type Domain = BTreeSet<Atom>;
 type Alpha = (Aggregate, Atom, Vec<String>);
@@ -153,13 +166,13 @@ impl PropagateState {
         condition.iter().all(|atom| domain.contains(atom))
     }
 
-    fn propagate_monotone(fun: AggregateFunction, rel: Relation, guard: &Term, elements: &BTreeSet<AggregateElement>, domain: &Domain) -> bool {
+    fn propagate_monotone(fun: AggregateFunction, rel: Relation, adjust: i32, guard: &Term, elements: &BTreeSet<AggregateElement>, domain: &Domain) -> bool {
         Self::check_bound(&Term::Number(elements.iter()
                                                 .map(|elem| Self::get_weight(fun, elem, domain))
-                                                .sum()), rel, guard)
+                                                .sum::<i32>() + adjust), rel, guard)
     }
 
-    fn propagate_nonmonotone_sum(rel: Relation, guard: &Term, elements: &BTreeSet<AggregateElement>, dom_i: &Domain, dom_j: &Domain) -> bool {
+    fn propagate_nonmonotone(rel: Relation, guard: &Term, elements: &BTreeSet<AggregateElement>, dom_i: &Domain, dom_j: &Domain) -> bool {
         let (adjust_fun, propagate_fun) = match rel {
             Relation::LessThan | Relation::LessEqual =>
                 (AggregateFunction::SumP, AggregateFunction::SumM),
@@ -168,14 +181,10 @@ impl PropagateState {
             Relation::Equal | Relation::Inequal => 
                 panic!("must not happen")
         };
-        let adjust: i32 = elements.iter()
-                                  .map(|elem| Self::get_weight(adjust_fun, elem, dom_i))
-                                  .sum();
-        let propagate: i32 = elements.iter()
-                                     .map(|elem| Self::get_weight(propagate_fun, elem, dom_j))
-                                     .sum();
-        println!("checking: {}-{} {} {}", propagate, adjust, rel, guard);
-        Self::check_bound(&Term::Number(propagate + adjust), rel, guard)
+        let adjust = elements.iter()
+                             .map(|elem| Self::get_weight(adjust_fun, elem, dom_i))
+                             .sum();
+        Self::propagate_monotone(propagate_fun, rel, adjust, guard, elements, dom_j)
     }
 
     fn propagate_disjunction(elements: &BTreeSet<AggregateElement>, dom_i: &Domain, dom_j: &Domain) -> bool {
@@ -242,46 +251,48 @@ impl PropagateState {
                 (AggregateFunction::SumP, Relation::GreaterEqual) |
                 (AggregateFunction::SumM, Relation::LessThan) |
                 (AggregateFunction::SumM, Relation::LessEqual) =>
-                    Self::propagate_monotone(aggr.fun, aggr.rel, guard, elements, dom_j),
+                    Self::propagate_monotone(aggr.fun, aggr.rel, 0, guard, elements, dom_j),
                 (AggregateFunction::Count, Relation::LessThan) |
                 (AggregateFunction::Count, Relation::LessEqual) |
                 (AggregateFunction::SumP, Relation::LessThan) |
                 (AggregateFunction::SumP, Relation::LessEqual) |
                 (AggregateFunction::SumM, Relation::GreaterThan) |
                 (AggregateFunction::SumM, Relation::GreaterEqual) =>
-                    Self::propagate_monotone(aggr.fun, aggr.rel, guard, elements, dom_i),
+                    Self::propagate_monotone(aggr.fun, aggr.rel, 0, guard, elements, dom_i),
                 (AggregateFunction::Count, Relation::Inequal) =>
-                    Self::propagate_monotone(aggr.fun, Relation::GreaterThan, guard, elements, dom_j) ||
-                        Self::propagate_monotone(aggr.fun, Relation::LessThan, guard, elements, dom_i) ||
+                    Self::propagate_monotone(aggr.fun, Relation::GreaterThan, 0, guard, elements, dom_j) ||
+                        Self::propagate_monotone(aggr.fun, Relation::LessThan, 0, guard, elements, dom_i) ||
                         Self::propagate_disjunction(elements, dom_i, dom_j),
                 (AggregateFunction::Count, Relation::Equal) =>
-                    Self::propagate_monotone(aggr.fun, Relation::GreaterEqual, guard, elements, dom_j) &&
-                        Self::propagate_monotone(aggr.fun, Relation::LessEqual, guard, elements, dom_i),
+                    Self::propagate_monotone(aggr.fun, Relation::GreaterEqual, 0, guard, elements, dom_j) &&
+                        Self::propagate_monotone(aggr.fun, Relation::LessEqual, 0, guard, elements, dom_i),
                 (AggregateFunction::SumP, Relation::Inequal) =>
-                    Self::propagate_monotone(aggr.fun, Relation::GreaterThan, guard, elements, dom_j) ||
-                        Self::propagate_monotone(aggr.fun, Relation::LessThan, guard, elements, dom_i) ||
+                    Self::propagate_monotone(aggr.fun, Relation::GreaterThan, 0, guard, elements, dom_j) ||
+                        Self::propagate_monotone(aggr.fun, Relation::LessThan, 0, guard, elements, dom_i) ||
                         Self::propagate_inequal(aggr.fun, &guard, &elements, dom_i, dom_j),
                 (AggregateFunction::SumP, Relation::Equal) =>
-                    Self::propagate_monotone(aggr.fun, Relation::GreaterEqual, guard, elements, dom_j) &&
-                        Self::propagate_monotone(aggr.fun, Relation::LessEqual, guard, elements, dom_i) &&
+                    Self::propagate_monotone(aggr.fun, Relation::GreaterEqual, 0, guard, elements, dom_j) &&
+                        Self::propagate_monotone(aggr.fun, Relation::LessEqual, 0, guard, elements, dom_i) &&
                         !Self::propagate_inequal(aggr.fun, &guard, &elements, dom_j, dom_i),
                 (AggregateFunction::SumM, Relation::Inequal) =>
-                    Self::propagate_monotone(aggr.fun, Relation::LessThan, guard, elements, dom_j) ||
-                        Self::propagate_monotone(aggr.fun, Relation::GreaterThan, guard, elements, dom_i) ||
+                    Self::propagate_monotone(aggr.fun, Relation::LessThan, 0, guard, elements, dom_j) ||
+                        Self::propagate_monotone(aggr.fun, Relation::GreaterThan, 0, guard, elements, dom_i) ||
                         Self::propagate_inequal(aggr.fun, &guard, &elements, dom_i, dom_j),
                 (AggregateFunction::SumM, Relation::Equal) =>
-                    Self::propagate_monotone(aggr.fun, Relation::LessEqual, guard, elements, dom_j) &&
-                        Self::propagate_monotone(aggr.fun, Relation::GreaterEqual, guard, elements, dom_i) &&
+                    Self::propagate_monotone(aggr.fun, Relation::LessEqual, 0, guard, elements, dom_j) &&
+                        Self::propagate_monotone(aggr.fun, Relation::GreaterEqual, 0, guard, elements, dom_i) &&
                         !Self::propagate_inequal(aggr.fun, &guard, &elements, dom_j, dom_i),
                 (AggregateFunction::Sum, Relation::GreaterThan) |
                 (AggregateFunction::Sum, Relation::GreaterEqual) |
                 (AggregateFunction::Sum, Relation::LessThan) |
                 (AggregateFunction::Sum, Relation::LessEqual) =>
-                    Self::propagate_nonmonotone_sum(aggr.rel, guard, elements, dom_i, dom_j),
+                    Self::propagate_nonmonotone(aggr.rel, guard, elements, dom_i, dom_j),
                 (AggregateFunction::Sum, _) =>
                     panic!("implement sum with = and !=")
             } {
-                println!("%         {}", gatom);
+                if get_verbose() {
+                    println!("%         {}", gatom);
+                }
                 dom_j.insert(gatom.clone());
             }
         }

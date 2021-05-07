@@ -2,6 +2,14 @@ use crate::ast::*;
 use crate::prp::*;
 use std::collections::HashMap;
 
+macro_rules! println_verbose {
+    ($arg:expr $(, $args:expr)*) => (
+        if get_verbose() {
+            println!($arg, $($args),*)
+        }
+    );
+}
+
 trait GroundMatch {
     fn ground_match(&self, g: &Self, s: &mut Substitution) -> bool;
 }
@@ -88,7 +96,7 @@ fn ground_rule(s: &Substitution, dom_i: &Domain, dom_j: &Domain, dom_jp: &Domain
     }
     else if new {
         ret.push(rule.apply(s));
-        println!("%           {}", ret.last().unwrap());
+        println_verbose!("%           {}", ret.last().unwrap());
     }
     ret
 }
@@ -104,21 +112,21 @@ fn ground_component(dom_i: &Domain, dom_j: &mut Domain, comp: &Vec<&Rule>) -> Ve
     loop {
         if !eta.is_empty() {
             // ground eta/epsilon rules
-            println!("%       Ground Element Rules");
+            println_verbose!("%       Ground Element Rules");
             let mut eta_g = Vec::new();
             for rule in &eta {
-                println!("%         {}", rule);
+                println_verbose!("%         {}", rule);
                 eta_g.append(&mut ground_rule(&Substitution::new(), dom_i, &dom_k, &dom_kp, &rule, 0, new));
             }
             // propagate aggregates
-            println!("%       Propagate Aggregates");
+            println_verbose!("%       Propagate Aggregates");
             alphas.propagate(&eta_g, dom_i, dom_j);
         }
         // ground aggregate rules
-        println!("%       Ground Rules");
+        println_verbose!("%       Ground Rules");
         let m = ret.len();
         for rule in &alpha {
-            println!("%         {}", rule);
+            println_verbose!("%         {}", rule);
             ret.append(&mut ground_rule(&Substitution::new(), dom_i, dom_j, &dom_jp, &rule, 0, new));
         }
         // next generation
@@ -159,18 +167,23 @@ macro_rules! print_sep {
     );
     ($l:expr, $seq:expr, $sep:expr) => (
         || -> () {
-            print!("{}", $l);
-            let mut comma = false;
-            for term in $seq {
-                if comma {
-                    print!($sep);
+            if get_verbose() {
+                print!("{}", $l);
+                let mut comma = false;
+                for term in $seq {
+                    if comma {
+                        print!($sep);
+                    }
+                    else {
+                        comma = true;
+                    }
+                    print!("{}", term);
                 }
-                else {
-                    comma = true;
-                }
-                print!("{}", term);
+                println!("");
             }
-            println!("");
+            else {
+                ()
+            }
         }()
     )
 }
@@ -181,7 +194,7 @@ pub fn ground(seq: &Vec<Vec<Vec<&Rule>>>) -> Vec<Rule> {
     let mut f = Vec::new();
     let mut g = Vec::new();
     for comp in seq {
-        println!("% Ground Component");
+        println_verbose!("% Ground Component");
         let mut open = HashMap::new();
         for ref_comp in comp {
             ref_comp.iter().for_each(|rule| *open.entry(rule.head.sig()).or_insert(0) += 1);
@@ -189,10 +202,10 @@ pub fn ground(seq: &Vec<Vec<Vec<&Rule>>>) -> Vec<Rule> {
         for ref_comp in comp {
             let ref_compp = ref_comp.iter().filter(|rule| is_stratified(rule, &open)).cloned().collect();
 
-            println!("%   Ground Refined Component");
-            println!("%     Ground Certain");
+            println_verbose!("%   Ground Refined Component");
+            println_verbose!("%     Ground Certain");
             f.extend(ground_component(&dom_j, &mut dom_i, &ref_compp));
-            println!("%     Ground Possible");
+            println_verbose!("%     Ground Possible");
             g.extend(ground_component(&dom_i, &mut dom_j, &ref_comp));
 
             ref_comp.iter().for_each(|rule| *open.get_mut(&rule.head.sig()).unwrap() -= 1);

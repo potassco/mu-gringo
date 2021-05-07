@@ -11,7 +11,9 @@ build = "build.rs"
 petgraph = "0"
 lalrpop-util = "0"
 regex = "1"
+clap = "2"
 
 [build-dependencies]
 petgraph = "0"
 lalrpop = "0"
+clap = "2"
