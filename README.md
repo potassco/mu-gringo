@@ -17,18 +17,17 @@ algorithms.
 
 Afterward, the examples can be grounded using
 
-    cargo run [files]
+    cargo run -- [files]
 
-If no files are given, the grounder reads from standard input.
-
-The grounder will print a lot of status information about what is happening
-during grounding.
+If no files are given, the grounder reads from standard input. Furthemore,
+option `-v` can be used to print a lot of status information about what is
+happening during grounding.
 
 ## Example Calls
 
-    cargo run examples/ex01.lp
-    cargo run examples/ex02.lp
+    cargo run -- -v examples/ex01.lp
+    cargo run -- -v examples/ex02.lp
     ...
-    cargo run examples/ex11.lp
+    cargo run -- -v examples/ex11.lp
 
 [rust]: https://www.rust-lang.org/
