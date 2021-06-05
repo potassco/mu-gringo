@@ -25,7 +25,7 @@ fn read(ofiles: Option<Values>) -> io::Result<String> {
 }
 
 fn main() {
-    let matches = App::new("grounding")
+    let matches = App::new("mu-gringo")
         .version("1.0")
         .about("Educational algorithms showing how to ground logic programs")
         .arg(Arg::with_name("files")

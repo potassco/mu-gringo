@@ -1,6 +1,6 @@
 # Prototypical Grounder Implementation
 
-This projects implements the grounding algorithms in the paper "On the
+This project implements the grounding algorithms in the paper "On the
 Foundations of Grounding in Answer Set Programming". Unlike a system like
 clingo, this implementation is not meant to be used in practice. It is very
 inefficient, does not translate into a format accepted by existing ASP solvers,

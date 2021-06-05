@@ -1,5 +1,5 @@
 [package]
-name = "grounding"
+name = "mu-gringo"
 version = "1.0.0"
 authors = ["Roland Kaminski <kaminski@cs.uni-potsdam.de>"]
 edition = "2018"
