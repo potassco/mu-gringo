@@ -136,48 +136,55 @@ impl PropagateState {
         }
     }
 
-    fn get_weight(fun: AggregateFunction, elem: &AggregateElement, dom: &Domain) -> i32 {
-        if !Self::is_satisfied(dom, &elem.condition) {
-            0
-        }
-        else {
-            match fun {
-                AggregateFunction::Count => 1,
-                AggregateFunction::SumP => {
-                    if let Some(Term::Number(w)) = elem.terms.first() {
-                        0.max(*w)
-                    }
-                    else {
-                        0
-                    }
-                },
-                AggregateFunction::SumM => {
-                    if let Some(Term::Number(w)) = elem.terms.first() {
-                        0.min(*w)
-                    }
-                    else {
-                        0
-                    }
-                },
-                AggregateFunction::Sum => {
-                    if let Some(Term::Number(w)) = elem.terms.first() {
-                        *w
-                    }
-                    else {
-                        0
-                    }
-                },
-            }
+    fn get_weight(fun: AggregateFunction, terms: &Vec<Term>) -> i32 {
+        match fun {
+            AggregateFunction::Count => 1,
+            AggregateFunction::SumP => {
+                if let Some(Term::Number(w)) = terms.first() {
+                    0.max(*w)
+                }
+                else {
+                    0
+                }
+            },
+            AggregateFunction::SumM => {
+                if let Some(Term::Number(w)) = terms.first() {
+                    0.min(*w)
+                }
+                else {
+                    0
+                }
+            },
+            AggregateFunction::Sum => {
+                if let Some(Term::Number(w)) = terms.first() {
+                    *w
+                }
+                else {
+                    0
+                }
+            },
         }
     }
+
     fn is_satisfied(domain: &Domain, condition: &Vec<Atom>) -> bool {
         condition.iter().all(|atom| domain.contains(atom))
     }
 
+    fn get_tuples(elements: &BTreeSet<AggregateElement>, domain: &Domain) -> BTreeSet<Vec<Term>> {
+        elements.iter()
+                .filter(|elem| Self::is_satisfied(domain, &elem.condition))
+                .map(|elem| elem.terms.clone())
+                .collect()
+    }
+
+    fn get_sum(fun: AggregateFunction, tuples: &BTreeSet<Vec<Term>>) -> i32 {
+        tuples.iter()
+              .map(|tuple| Self::get_weight(fun, tuple))
+              .sum()
+    }
+
     fn propagate_monotone(fun: AggregateFunction, rel: Relation, adjust: i32, guard: &Term, elements: &BTreeSet<AggregateElement>, domain: &Domain) -> bool {
-        Self::check_bound(&Term::Number(elements.iter()
-                                                .map(|elem| Self::get_weight(fun, elem, domain))
-                                                .sum::<i32>() + adjust), rel, guard)
+        Self::check_bound(&Term::Number(Self::get_sum(fun, &Self::get_tuples(elements, domain)) + adjust), rel, guard)
     }
 
     fn propagate_nonmonotone(rel: Relation, guard: &Term, elements: &BTreeSet<AggregateElement>, dom_i: &Domain, dom_j: &Domain) -> bool {
@@ -189,9 +196,7 @@ impl PropagateState {
             Relation::Equal | Relation::Inequal => 
                 panic!("must not happen")
         };
-        let adjust = elements.iter()
-                             .map(|elem| Self::get_weight(adjust_fun, elem, dom_i))
-                             .sum();
+        let adjust = Self::get_sum(adjust_fun, &Self::get_tuples(elements, dom_i));
         Self::propagate_monotone(propagate_fun, rel, adjust, guard, elements, dom_j)
     }
 
@@ -213,14 +218,14 @@ impl PropagateState {
     }
 
     fn propagate_inequal(fun: AggregateFunction, guard: &Term, elements: &BTreeSet<AggregateElement>, dom_i: &Domain, dom_j: &Domain) -> bool {
-        let sum_j: i32 = elements.iter()
-                                 .map(|elem| Self::get_weight(fun, elem, dom_j)).sum();
-        let ele_i: Vec<i32> = elements.iter()
-                                      .filter(|elem| !Self::is_satisfied(dom_j, &elem.condition))
-                                      .map(|elem| Self::get_weight(fun, elem, dom_i))
-                                      .filter(|elem| *elem != 0)
+        let ele_j = &Self::get_tuples(elements, dom_j);
+        let sum_j: i32 = Self::get_sum(fun, &ele_j);
+        let ele_i: Vec<Vec<Term>> = Self::get_tuples(elements, dom_i).difference(&ele_j).cloned().collect();
+        let weight_i: Vec<i32> = ele_i.iter()
+                                      .map(|tuple| Self::get_weight(fun, tuple))
+                                      .filter(|weight| *weight != 0)
                                       .collect();
-        Self::check_subsets(&ele_i[..], sum_j, guard)
+        Self::check_subsets(&weight_i[..], sum_j, guard)
     }
     /// Propagate aggregates adding aggregate atoms to the domain if the aggregate became true.
     ///
@@ -319,7 +324,7 @@ impl PropagateState {
                     //   (dom_i - mod_j)
                     Self::propagate_nonmonotone(Relation::LessEqual, guard, elements, dom_i, dom_j) &&
                         Self::propagate_nonmonotone(Relation::GreaterEqual, guard, elements, dom_i, dom_j) &&
-                        !Self::propagate_inequal(aggr.fun, &guard, &elements, dom_j, dom_i),
+                        !Self::propagate_inequal(aggr.fun, &guard, &elements, dom_j, dom_i) ,
             } {
                 if get_verbose() {
                     println!("%         {}", gatom);
