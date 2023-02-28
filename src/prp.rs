@@ -200,11 +200,6 @@ impl PropagateState {
         Self::propagate_monotone(propagate_fun, rel, adjust, guard, elements, dom_j)
     }
 
-    fn propagate_disjunction(elements: &BTreeSet<AggregateElement>, dom_i: &Domain, dom_j: &Domain) -> bool {
-        elements.iter()
-                .any(|elem| !Self::is_satisfied(dom_i, &elem.condition) && Self::is_satisfied(dom_j, &elem.condition))
-    }
-
     /// Returns true if the sums all subsets of ele_i are inequal to sum_j + guard.
     ///
     /// I made no attempt to implement this efficiently.
@@ -283,8 +278,7 @@ impl PropagateState {
                     Self::propagate_monotone(aggr.fun, aggr.rel, 0, guard, elements, dom_i),
                 (AggregateFunction::Count, Relation::Inequal) =>
                     Self::propagate_monotone(aggr.fun, Relation::GreaterThan, 0, guard, elements, dom_j) ||
-                        Self::propagate_monotone(aggr.fun, Relation::LessThan, 0, guard, elements, dom_i) ||
-                        Self::propagate_disjunction(elements, dom_i, dom_j),
+                        Self::propagate_monotone(aggr.fun, Relation::LessThan, 0, guard, elements, dom_i),
                 (AggregateFunction::Count, Relation::Equal) =>
                     Self::propagate_monotone(aggr.fun, Relation::GreaterEqual, 0, guard, elements, dom_j) &&
                         Self::propagate_monotone(aggr.fun, Relation::LessEqual, 0, guard, elements, dom_i),
