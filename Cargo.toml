@@ -16,4 +16,4 @@ clap = "2"
 [build-dependencies]
 petgraph = "0"
 lalrpop = "0"
-clap = "2"
+clap = "4"
