@@ -7,12 +7,12 @@ mod prp;
 
 use std::fs;
 use std::io::{self, Read};
-use clap::{Arg, App, Values};
+use clap::Parser;
 use prp::set_verbose;
 
-fn read(ofiles: Option<Values>) -> io::Result<String> {
+fn read(files: Vec<String>) -> io::Result<String> {
     let mut content = String::new();
-    if let Some(files) = ofiles {
+    if !files.is_empty() {
         for filename in files {
             let mut file = fs::File::open(filename)?;
             file.read_to_string(&mut content)?;
@@ -24,22 +24,19 @@ fn read(ofiles: Option<Values>) -> io::Result<String> {
     Ok(content)
 }
 
-fn main() {
-    let matches = App::new("mu-gringo")
-        .version("1.0")
-        .about("Educational algorithms showing how to ground logic programs")
-        .arg(Arg::with_name("files")
-            .help("Files with logic programs")
-            .index(1)
-            .multiple(true))
-        .arg(Arg::with_name("verbose")
-            .short('v')
-            .long("verbose")
-            .help("Enable verbose output"))
-        .get_matches();
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    files: Vec<String>,
 
-    let content = read(matches.values_of("files")).unwrap();
-    set_verbose(matches.occurrences_of("verbose") > 0);
+    #[arg(short, long)]
+    verbose: bool,
+}
+
+fn main() {
+    let args = Args::parse();
+    let content = read(args.files).unwrap();
+    set_verbose(args.verbose);
 
     let mut prg = ast::parse(&content).unwrap();
     assert!(dep::check(prg.iter()));

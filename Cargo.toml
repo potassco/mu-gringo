@@ -2,18 +2,18 @@
 name = "mu-gringo"
 version = "1.0.0"
 authors = ["Roland Kaminski <kaminski@cs.uni-potsdam.de>"]
-edition = "2018"
+edition = "2021"
 build = "build.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 petgraph = "0"
-lalrpop-util = "0"
+lalrpop-util = { version = "0", features = ["lexer"] }
 regex = "1"
-clap = "3"
+clap = { version = "4", features = ["derive"] }
 
 [build-dependencies]
 petgraph = "0"
 lalrpop = "0"
-clap = "3"
+clap = "4"
