@@ -33,7 +33,7 @@ fn main() {
             .index(1)
             .multiple(true))
         .arg(Arg::with_name("verbose")
-            .short("v")
+            .short('v')
             .long("verbose")
             .help("Enable verbose output"))
         .get_matches();
