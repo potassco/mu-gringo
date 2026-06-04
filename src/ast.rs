@@ -207,26 +207,11 @@ impl fmt::Display for Rule {
     }
 }
 
-pub trait ClassifyPosNeg {
-    fn has_positive(&self) -> bool;
+pub trait ClassifyNeg {
     fn has_negative(&self) -> bool;
 }
 
-impl ClassifyPosNeg for Aggregate {
-    fn has_positive(&self) -> bool {
-        match (&self.fun, &self.rel) {
-            (_, Relation::Equal) => true,
-            (_, Relation::Inequal) => true,
-            (AggregateFunction::Count, Relation::GreaterThan) => true,
-            (AggregateFunction::Count, Relation::GreaterEqual) => true,
-            (AggregateFunction::SumP, Relation::GreaterThan) => true,
-            (AggregateFunction::SumP, Relation::GreaterEqual) => true,
-            (AggregateFunction::SumM, Relation::LessThan) => true,
-            (AggregateFunction::SumM, Relation::LessEqual) => true,
-            (AggregateFunction::Sum, _) => true,
-            _ => false,
-        }
-    }
+impl ClassifyNeg for Aggregate {
     fn has_negative(&self) -> bool {
         match (&self.fun, &self.rel) {
             (_, Relation::Equal) => true,
@@ -243,13 +228,7 @@ impl ClassifyPosNeg for Aggregate {
     }
 }
 
-impl ClassifyPosNeg for Literal {
-    fn has_positive(&self) -> bool {
-        match &self {
-            Literal::Literal{positive, ..} => *positive,
-            _ => false,
-        }
-    }
+impl ClassifyNeg for Literal {
     fn has_negative(&self) -> bool {
         match &self {
             Literal::Literal{positive, ..} => !*positive,
@@ -258,13 +237,7 @@ impl ClassifyPosNeg for Literal {
     }
 }
 
-impl ClassifyPosNeg for BodyLiteral {
-    fn has_positive(&self) -> bool {
-        match &self {
-            BodyLiteral::Literal(lit) => lit.has_positive(),
-            BodyLiteral::Aggregate(aggr) => aggr.has_positive(),
-        }
-    }
+impl ClassifyNeg for BodyLiteral {
     fn has_negative(&self) -> bool {
         match &self {
             BodyLiteral::Literal(lit) => lit.has_negative(),
